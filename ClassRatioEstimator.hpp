@@ -54,7 +54,7 @@ public:
 	void	BestKernel( const Data &inTrain, const Data &inEval, weights_t &outWeights );
 
 	real_array ClassProportions( const Matrix &inLabels ) const;
-	float 	ClassProportionsMSE( const real_array &ref, const real_array &test ) const;
+	float 	LpNorm( const real_array &ref, const real_array &test, int p = 2 ) const;
 	float 	Correlation( const real_array &ref, const real_array &test ) const;
 };
 

@@ -9,7 +9,7 @@
 
 DenseMatrix::DenseMatrix( int rows, int cols, float value )
 {
-	mMatrix.resize( rows, cols, false );
+	mMatrix.resize( rows, cols );
 	mRows = rows, mCols = cols;
 
 	if ( value )
@@ -18,6 +18,8 @@ DenseMatrix::DenseMatrix( int rows, int cols, float value )
 			for ( int c = 0; c < mCols; ++c )
 				mMatrix(r,c) = value;
 	}
+	else
+		mMatrix.clear();
 }
 
 void
@@ -413,10 +415,8 @@ DenseMatrix & DenseMatrix::operator+=( float scalar )
 
 DenseMatrix DenseMatrix::Transpose( void ) const
 {
-	DenseMatrix temp(*this);
-
-	boost::numeric::ublas::trans( temp.mMatrix );
-
+	DenseMatrix temp;
+	temp.mMatrix = boost::numeric::ublas::trans( this->mMatrix );
 	temp.mRows = mCols;
 	temp.mCols = mRows;
 

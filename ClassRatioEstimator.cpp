@@ -88,18 +88,16 @@ real_array ClassRatioEstimator::ClassProportions( const Matrix &inLabels ) const
 	return props;
 }
 
-float ClassRatioEstimator::ClassProportionsMSE( const real_array &ref, const real_array &test ) const
+float ClassRatioEstimator::LpNorm( const real_array &ref, const real_array &test, int p ) const
 {
 	if ( ref.size() != test.size() )
 		throw std::runtime_error("class proportions length disagreement");
 
 	float error = 0.0;
 	for ( int i = 0; i < ref.size(); ++i )
-		error += (ref[i] - test[i])*(ref[i] - test[i]);
+		error += pow(ref[i] - test[i], p);
 
-	error /= (float)ref.size();
-
-	return error;
+	return pow(error, (1.0/p));
 }
 
 float ClassRatioEstimator::Correlation(const real_array& ref, const real_array& test) const
@@ -167,7 +165,9 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, we
 
 		sw.Restart();
 		real_array props_estimated(noClasses);
-		MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, Krr, Ker, props_estimated );
+		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, Krr, Ker, props_estimated ) )
+			continue;
+
 		float mmd_time = sw.Elapsed();
 
 		//float mse_now = ClassProportionsMSE( yte_props, props_estimated );
@@ -180,7 +180,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, we
 			best_props = props_estimated;
 		}
 
-		if ( mse_now >= 0.80 )
+		if ( mse_now >= 0 )
 		{
 			Krr *= mse_now;
 			superKrr += Krr;
@@ -229,7 +229,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, we
 			best_props = props_estimated;
 		}
 
-		if (mse_now >= 0.80)
+		if (mse_now >= 0)
 		{
 			Krr *= mse_now;
 			superKrr += Krr;
@@ -252,6 +252,8 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, we
 	for ( int i = 0; i < best_props.size(); ++i )
 		std::cout << "best_theta[" << i << "] = " << best_props[i] << std::endl;
 
+	std::cerr << "L2 norm: " << LpNorm( best_props, yte_props ) << std::endl;
+
 	superKrr *= (1.0/superWt);
 	superKer *= (1.0/superWt);
 
@@ -262,6 +264,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, we
 			std::cout << "super_theta[" << i << "] = " << props_estimated[i] << std::endl;
 
 		std::cerr << "super correlation: " << Correlation( props_estimated, yte_props ) << std::endl;
+		std::cerr << "L2 norm: " << LpNorm( props_estimated, yte_props ) << std::endl;
 	}
 
 }
@@ -303,9 +306,6 @@ void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense
 			// kernel computed on a per dimension basis.
 			kernel->Compute( inA, inB, outKernels[k], cols );
 			std::cerr << sw.Elapsed() << " mS" << std::endl;
-
-			//outKernels[k] >> std::cout;
-			//std::cout << std::endl;
 		}
 
 	}
@@ -327,14 +327,8 @@ void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense
 		Stopwatch sw;
 		kernel->Compute( inA, inB, outKernels[k] );
 		std::cerr << sw.Elapsed() << " mS" << std::endl;
-
-		//outKernels[k] >> std::cout;
-		//std::cout << std::endl;
 	}
-
 }
-
-
 
 /**
  * function [theta, obj] = MMD(Y, c, Krr, Ker)
@@ -392,9 +386,6 @@ bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const Dens
 			int_array idx2 = Indices( inY, j+1 );
 			int size2 = idx2.size();
 			DenseMatrix ktemp = inKrr.Select(idx1, idx2);
-
-			//ktemp >> std::cout;
-
 			/*
 			if ( i == j )
 			{
@@ -425,14 +416,18 @@ bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const Dens
 	H += H.Transpose();
 	H *= 0.5;
 
-	//H >> std::cout;
-	//std::cout << std::endl;
-
 	Qdata q(H);
 	int result = QuadProg( q, &f[0], inClasses, outValues );
+
+	if ( result )
+	{
+		H >> std::cout;
+		std::cout << std::endl;
+	}
+
 /*
  * @NOTE: http://in.mathworks.com/matlabcentral/fileexchange/35938-converts-a-non-positive-definite-symmetric-matrix-to-positive-definite-symmetric-matrix/content/topdm.m
- */
+
 	if ( result )
 	{
 		using namespace arma;
@@ -464,7 +459,7 @@ bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const Dens
 		else
 			std::cerr << "WORKED!!" << std::endl;
 	}
-
+*/
 	return result == 0;
 }
 
