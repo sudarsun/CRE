@@ -147,41 +147,41 @@ public:
 	}
 
 	/// equals comparator
-	virtual bool operator==(const DenseMatrix& other);
+	bool operator==(const DenseMatrix& other);
 
-	virtual DenseMatrix & operator+=( const DenseMatrix & );
-	virtual DenseMatrix & operator*=( const DenseMatrix & );
-	virtual DenseMatrix & operator*=( float scalar );
-	virtual DenseMatrix & operator+=( float scalar );
-	virtual DenseMatrix & operator-=( float scalar );
+	DenseMatrix & operator+=( const DenseMatrix & );
+	DenseMatrix & operator*=( const DenseMatrix & );
+	DenseMatrix & operator*=( float scalar );
+	DenseMatrix & operator+=( float scalar );
+	DenseMatrix & operator-=( float scalar );
 
 	/// clear the allocation.
-	virtual void Clear( void );
+	void Clear( void );
 
 	/// resize the matrix to (rows x cols)
-	virtual bool Resize( int rows, int cols );
+	bool Resize( int rows, int cols );
 
 	/// const accessor
-	virtual const float & operator()( int r, int c ) const;
+	const float & operator()( int r, int c ) const;
 
 	/// non-const accessor/mutator method
-	virtual float & operator()( int r, int c );
+	float & operator()( int r, int c );
 
 	/// read a text stream to load the matrix.
-	virtual void operator << ( std::istream & );
+	void operator << ( std::istream & );
 
 	/// write the matrix to an output stream
-	virtual void operator >> ( std::ostream & );
+	void operator >> ( std::ostream & );
 
-	virtual void Append( const Matrix & );
+	void Append( const Matrix & );
 
-	virtual Matrix & operator= ( const Matrix & );
+	Matrix & operator= ( const Matrix & );
 
-	virtual DenseMatrix & operator=( const DenseMatrix & );
+	DenseMatrix & operator=( const DenseMatrix & );
 
-	virtual DenseMatrix Select( const int_array &idx1, const int_array &idx2 ) const;
+	DenseMatrix Select( const int_array &idx1, const int_array &idx2 ) const;
 
-	virtual DenseMatrix Transpose( void ) const;
+	DenseMatrix Transpose( void ) const;
 
 	enum Order_t
 	{
@@ -190,18 +190,18 @@ public:
 		eWholesome
 	};
 
-	virtual DenseMatrix Mean( Order_t inOrder = eColWise ) const;
-	virtual DenseMatrix Sum( Order_t inOrder = eColWise ) const;
-	virtual DenseMatrix Min( Order_t inOrder = eColWise ) const;
-	virtual DenseMatrix Max( Order_t inOrder = eColWise ) const;
+	DenseMatrix Mean( Order_t inOrder = eColWise ) const;
+	DenseMatrix Sum( Order_t inOrder = eColWise ) const;
+	DenseMatrix Min( Order_t inOrder = eColWise ) const;
+	DenseMatrix Max( Order_t inOrder = eColWise ) const;
 
 private:
 
 	boost::numeric::ublas::matrix<float> mMatrix;
 
 };
-
-class DenseMatrixArmadillo : public DenseMatrix
+/*
+class DenseMatrixArmadillo : public Matrix
 {
 
 public:
@@ -299,7 +299,7 @@ private:
 
 	arma::Mat<float> mMatrix;
 
-};
+};*/
 
 class IdentityMatrix : public DenseMatrix
 {
