@@ -35,6 +35,8 @@
 #include <cfloat>
 #include <armadillo>
 
+static const float kCorrelationThreshold = 0.8;
+
 float ClassRatioEstimator::BandwidthSelect(const Matrix& inMatrix) const
 {
 	int nsamples = inMatrix.Rows();
@@ -65,61 +67,7 @@ float ClassRatioEstimator::BandwidthSelect(const Matrix& inMatrix) const
 	return mean_std_x * sigma;
 }
 
-real_array ClassRatioEstimator::ClassProportions( const Matrix &inLabels ) const
-{
-	real_array props;
-
-	int R = inLabels.Rows();
-	for ( int r = 0; r < R; ++r )
-	{
-		int label = inLabels(r,0);
-		if ( label == 0 )
-			throw std::runtime_error("class labels should be positive");
-
-		if ( label > props.size() )
-			props.resize(label);
-
-		++props[label-1];
-	}
-
-	for ( int i = 0; i < props.size(); ++i )
-		props[i] /= (float)R;
-
-	return props;
-}
-
-float ClassRatioEstimator::LpNorm( const real_array &ref, const real_array &test, int p ) const
-{
-	if ( ref.size() != test.size() )
-		throw std::runtime_error("class proportions length disagreement");
-
-	float error = 0.0;
-	for ( int i = 0; i < ref.size(); ++i )
-		error += pow(ref[i] - test[i], p);
-
-	return pow(error, (1.0/p));
-}
-
-float ClassRatioEstimator::Correlation(const real_array& ref, const real_array& test) const
-{
-	if ( ref.size() != test.size() )
-		throw std::runtime_error("class proportions length disagreement");
-
-	int N = ref.size();
-
-	float mean_ref = Mean(ref), mean_test = Mean(test);
-	float std_ref = StandardDeviation(ref), std_test = StandardDeviation(test);
-
-	float sum = 0;
-	for ( int i = 0; i < N; ++i )
-		sum += (ref[i] - mean_ref) * (test[i] - mean_test);
-
-	float corr = sum / ((N-1)*std_ref*std_test);
-	return corr;
-}
-
-
-void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, weights_t& outWeights)
+void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, real_array& outWeights)
 {
 	const Matrix &train = inTrain.Features();
 	const Matrix &eval = inEval.Features();
@@ -138,12 +86,15 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, we
 	float bandwidth = BandwidthSelect( train );
 
 	//float mse = FLT_MAX;
-	float mse = FLT_MIN;
+	float corr = FLT_MIN;
 	int best_kernel = -1;
 	real_array best_props;
 
 	DenseMatrix superKrr(n1,n1), superKer(n2,n1);
 	float superWt = 0;
+
+	// create a placeholder for the weight proportions.
+	outWeights.resize( dims + 13 );
 
 	DenseMatrix Krr, Ker;
 	RBFKernel_Armadillo kernel( bandwidth );
@@ -170,28 +121,28 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, we
 
 		float mmd_time = sw.Elapsed();
 
-		//float mse_now = ClassProportionsMSE( yte_props, props_estimated );
-		//if ( mse_now < mse )
-		float mse_now = Correlation( yte_props, props_estimated );
-		if ( mse_now > mse )
+		float corr_now = Correlation( yte_props, props_estimated );
+		if ( corr_now > corr )
 		{
 			best_kernel = k;
-			mse = mse_now;
+			corr = corr_now;
 			best_props = props_estimated;
 		}
 
-		if ( mse_now >= 0 )
+		if ( corr_now >= kCorrelationThreshold )
 		{
-			Krr *= mse_now;
+			Krr *= corr_now;
 			superKrr += Krr;
 
-			Ker *= mse_now;
+			Ker *= corr_now;
 			superKer += Ker;
 
-			superWt += mse_now;
+			superWt += corr_now;
+
+			outWeights[k] = corr_now;
 		}
 
-		std::cerr << "Dim[" << k << "] MSE=" << mse_now << " {bestMSE=" << mse << "(" << best_kernel << ")}"
+		std::cout << "Dim[" << k << "] CORR=" << corr_now << " {bestCORR=" << corr << "(" << best_kernel << ")}"
 					<< "krr: " << krr_time << "mS "
 					<< "ker: " << ker_time << "mS "
 					<< "mmd: " << mmd_time << "mS "
@@ -219,17 +170,16 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, we
 
 		float mmd_time = sw.Elapsed();
 
-		//float mse_now = ClassProportionsMSE( yte_props, props_estimated );
 		float mse_now = Correlation( yte_props, props_estimated );
 		//if ( mse_now < mse )
-		if ( mse_now > mse )
+		if ( mse_now > corr )
 		{
 			best_kernel = k;
-			mse = mse_now;
+			corr = mse_now;
 			best_props = props_estimated;
 		}
 
-		if (mse_now >= 0)
+		if (mse_now >= kCorrelationThreshold)
 		{
 			Krr *= mse_now;
 			superKrr += Krr;
@@ -238,35 +188,113 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, we
 			superKer += Ker;
 
 			superWt = mse_now;
+
+			outWeights[k] = mse_now;
 		}
 
-		std::cerr << "Multi[" << k << "] MSE=" << mse_now << " {bestMSE=" << mse << "(" << best_kernel << ")}"
+		std::cout << "Multi[" << k << "] CORR=" << mse_now << " {bestCORR=" << corr << "(" << best_kernel << ")}"
 					<< "krr: " << krr_time << "mS "
 					<< "ker: " << ker_time << "mS "
 					<< "mmd: " << mmd_time << "mS "
 					<< std::endl;
 	}
 
-	outWeights.push_back( weight_t( k, 1.0 ) );
-
-	for ( int i = 0; i < best_props.size(); ++i )
-		std::cout << "best_theta[" << i << "] = " << best_props[i] << std::endl;
-
-	std::cerr << "L2 norm: " << LpNorm( best_props, yte_props ) << std::endl;
+	std::cout << "Best Theta:\n" << best_props << std::endl;
+	std::cout << "L2 norm: " << LpNorm( best_props, yte_props ) << std::endl;
 
 	superKrr *= (1.0/superWt);
 	superKer *= (1.0/superWt);
 
+	float super_correlation = -1;
 	real_array props_estimated;
-	if (MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, superKrr, superKer, props_estimated ))
+	if ( MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, superKrr, superKer, props_estimated ))
 	{
-		for ( int i = 0; i < props_estimated.size(); ++i )
-			std::cout << "super_theta[" << i << "] = " << props_estimated[i] << std::endl;
+		std::cout << "Super Theta:\n" << props_estimated << std::endl;
 
-		std::cerr << "super correlation: " << Correlation( props_estimated, yte_props ) << std::endl;
-		std::cerr << "L2 norm: " << LpNorm( props_estimated, yte_props ) << std::endl;
+		super_correlation = Correlation( props_estimated, yte_props );
+		std::cout << "super correlation: " << super_correlation << std::endl;
+		std::cout << "L2 norm: " << LpNorm( props_estimated, yte_props ) << std::endl;
+
+		// super kernel didn't contribute, so use the best kernel with binary weights.
+		if ( super_correlation < corr )
+		{
+			outWeights.clear();
+			outWeights.resize( dims + 13 );
+			outWeights[best_kernel] = 1;
+		}
+	}
+	else // super kernel failed, so use the best kernel with binary weights.
+	{
+		outWeights.clear();
+		outWeights.resize( dims + 13 );
+		outWeights[best_kernel] = 1;
 	}
 
+}
+
+void
+ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, float inBandwidth, const real_array &inWts )
+{
+	int dimensions = inA.Columns();
+
+	real_array bandwidths;
+	for (int i = -6; i <= 6; ++i )
+	{
+		float product = pow(2,i);
+		product *= inBandwidth * dimensions * dimensions;
+		bandwidths.push_back( product );
+	}
+
+	float totalWt = 0;
+	outKernel.Resize(inA.Rows(), inB.Rows());
+
+	int univariateGaussians = dimensions;
+	RBFKernel_Armadillo kernel( inBandwidth );
+	for ( int k = 0; k < dimensions; ++k )
+	{
+		// skip kernels that are not required.
+		if ( inWts[k] == 0 )
+			continue;
+
+		// have only one dimension in the column select.
+		int_array cols;
+		cols.push_back(k);
+
+		std::cerr << "Dim[" << k+1 << "]: ";
+		Stopwatch sw;
+
+		DenseMatrix K;
+		// kernel computed on a per dimension basis.
+		kernel.Compute( inA, inB, K, cols );
+		K *= inWts[k];
+		totalWt += inWts[k];
+		outKernel += K;
+
+		std::cerr << sw.Elapsed() << " mS" << std::endl;
+	}
+
+	int nofKernels = univariateGaussians + bandwidths.size();
+	for ( int k = univariateGaussians; k < nofKernels; ++k )
+	{
+		if ( inWts[k] == 0 )
+			continue;
+
+		float bw = bandwidths[ k-univariateGaussians ];
+		RBFKernel_Armadillo kernel(bw);
+
+		std::cerr << "BW[" << k+1-univariateGaussians << "]: ";
+		Stopwatch sw;
+
+		DenseMatrix K;
+		kernel.Compute( inA, inB, K );
+		K *= inWts[k];
+		totalWt += inWts[k];
+		outKernel += K;
+
+		std::cerr << sw.Elapsed() << " mS" << std::endl;
+	}
+
+	outKernel *= (1.0/totalWt);
 }
 
 void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense_matrix_array &outKernels, float inBandwidth, bool inMulti, KernelImplType inType )
@@ -418,12 +446,6 @@ bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const Dens
 
 	Qdata q(H);
 	int result = QuadProg( q, &f[0], inClasses, outValues );
-
-	if ( result )
-	{
-		H >> std::cout;
-		std::cout << std::endl;
-	}
 
 /*
  * @NOTE: http://in.mathworks.com/matlabcentral/fileexchange/35938-converts-a-non-positive-definite-symmetric-matrix-to-positive-definite-symmetric-matrix/content/topdm.m

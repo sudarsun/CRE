@@ -204,20 +204,20 @@ int QuadProg( const Qdata &q, double *c, int classes, real_array &outValues )
             case MSK_SOL_STA_PRIM_INFEAS_CER:
             case MSK_SOL_STA_NEAR_DUAL_INFEAS_CER:
             case MSK_SOL_STA_NEAR_PRIM_INFEAS_CER:
-              printf("Primal or dual infeasibility certificate found.\n");
+              fprintf(stderr,"Primal or dual infeasibility certificate found.\n");
               break;
 
             case MSK_SOL_STA_UNKNOWN:
-              printf("The status of the solution could not be determined.\n");
+              fprintf(stderr,"The status of the solution could not be determined.\n");
               break;
             default:
-              printf("Other solution status.");
+              fprintf(stderr,"Other solution status.");
               break;
           }
         }
         else
         {
-          printf("Error while optimizing.\n");
+          fprintf(stderr,"Error while optimizing.\n");
         }
       }
 
@@ -227,11 +227,11 @@ int QuadProg( const Qdata &q, double *c, int classes, real_array &outValues )
         char symname[MSK_MAX_STR_LEN];
         char desc[MSK_MAX_STR_LEN];
 
-        printf("An error occurred while optimizing.\n");
+        fprintf(stderr,"An error occurred while optimizing.\n");
         MSK_getcodedesc (r,
                          symname,
                          desc);
-        printf("Error %s - '%s'\n",symname,desc);
+        fprintf(stderr,"Error %s - '%s'\n",symname,desc);
       }
     }
     MSK_deletetask(&task);

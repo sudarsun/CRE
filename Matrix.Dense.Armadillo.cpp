@@ -9,7 +9,7 @@
 
 using namespace arma;
 
-DenseMatrixArmadillo::DenseMatrixArmadillo( int rows, int cols, float value )
+DenseMatrix::DenseMatrix( int rows, int cols, float value )
 {
 	mMatrix.resize( rows, cols );
 	mRows = rows, mCols = cols;
@@ -22,10 +22,10 @@ DenseMatrixArmadillo::DenseMatrixArmadillo( int rows, int cols, float value )
 	}
 }
 
-DenseMatrix DenseMatrixArmadillo::Select( const int_array &inArray1, const int_array &inArray2 ) const
+DenseMatrix DenseMatrix::Select( const int_array &inArray1, const int_array &inArray2 ) const
 {
 	int size1_ = inArray1.size(), size2_ = inArray2.size();
-	DenseMatrixArmadillo result;
+	DenseMatrix result;
 	if ( size1_ == 0 and size2_ == 0 )
 	{
 		result.mMatrix = mMatrix;
@@ -65,81 +65,81 @@ DenseMatrix DenseMatrixArmadillo::Select( const int_array &inArray1, const int_a
 	return result;
 }
 
-DenseMatrix DenseMatrixArmadillo::Mean( Order_t inOrder ) const
+DenseMatrix DenseMatrix::Mean( Order_t inOrder ) const
 {
 	if ( inOrder == eColWise )
 	{
 		const Row<float> &row = mean( mMatrix, 0 );
-		return DenseMatrixArmadillo( row );
+		return DenseMatrix( row );
 	}
 	else if ( inOrder == eRowWise )
 	{
 		const Col<float> &col = mean( mMatrix, 1 );
-		return DenseMatrixArmadillo( col );
+		return DenseMatrix( col );
 	}
 
-	DenseMatrixArmadillo result(1,1);
+	DenseMatrix result(1,1);
 	result(0,0) = mean( mean( mMatrix ) );
 	return result;
 
 }
 
-DenseMatrix DenseMatrixArmadillo::Min( Order_t inOrder ) const
+DenseMatrix DenseMatrix::Min( Order_t inOrder ) const
 {
 	if ( inOrder == eColWise )
 	{
 		const Row<float> &row = min( mMatrix, 0 );
-		return DenseMatrixArmadillo( row );
+		return DenseMatrix( row );
 	}
 	else if ( inOrder == eRowWise )
 	{
 		const Col<float> &col = min( mMatrix, 1 );
-		return DenseMatrixArmadillo( col );
+		return DenseMatrix( col );
 	}
 
-	DenseMatrixArmadillo result(1,1);
+	DenseMatrix result(1,1);
 	result(0,0) = min( min( mMatrix ) );
 	return result;
 }
 
-DenseMatrix DenseMatrixArmadillo::Max( Order_t inOrder ) const
+DenseMatrix DenseMatrix::Max( Order_t inOrder ) const
 {
 	if ( inOrder == eColWise )
 	{
 		const Row<float> &row = max( mMatrix, 0 );
-		return DenseMatrixArmadillo( row );
+		return DenseMatrix( row );
 	}
 	else if ( inOrder == eRowWise )
 	{
 		const Col<float> &col = max( mMatrix, 1 );
-		return DenseMatrixArmadillo( col );
+		return DenseMatrix( col );
 	}
 
-	DenseMatrixArmadillo result(1,1);
+	DenseMatrix result(1,1);
 	result(0,0) = max( max( mMatrix ) );
 	return result;
 
 }
 
-DenseMatrix DenseMatrixArmadillo::Sum( Order_t inOrder ) const
+DenseMatrix DenseMatrix::Sum( Order_t inOrder ) const
 {
 	if ( inOrder == eColWise )
 	{
 		const Row<float> &row = sum( mMatrix, 0 );
-		return DenseMatrixArmadillo( row );
+		return DenseMatrix( row );
 	}
 	else if ( inOrder == eRowWise )
 	{
 		const Col<float> &col = sum( mMatrix, 1 );
-		return DenseMatrixArmadillo( col );
+		return DenseMatrix( col );
 	}
 
-	DenseMatrixArmadillo result(1,1);
+	DenseMatrix result(1,1);
 	result(0,0) = sum( sum( mMatrix ) );
 	return result;
 }
 
-void DenseMatrixArmadillo::operator<<(std::istream& is )
+void DenseMatrix::operator<<(std::istream& is )
 {
 	typedef std::vector<float> row_t;
 
@@ -185,7 +185,7 @@ void DenseMatrixArmadillo::operator<<(std::istream& is )
 	mCols = mMatrix.n_cols;
 }
 
-void DenseMatrixArmadillo::operator>>(std::ostream& os )
+void DenseMatrix::operator>>(std::ostream& os )
 {
 	for ( int r = 0; r < mRows; ++r )
 	{
@@ -198,7 +198,7 @@ void DenseMatrixArmadillo::operator>>(std::ostream& os )
 	}
 }
 
-void DenseMatrixArmadillo::Append( const Matrix &inMatrix )
+void DenseMatrix::Append( const Matrix &inMatrix )
 {
 	// resize the matrix allocation to accomodate new rows.
 	mMatrix.resize( mMatrix.n_rows + inMatrix.Rows(), mMatrix.n_cols );
@@ -213,11 +213,11 @@ void DenseMatrixArmadillo::Append( const Matrix &inMatrix )
 }
 
 
-Matrix & DenseMatrixArmadillo::operator=( const Matrix &inMatrix )
+Matrix & DenseMatrix::operator=( const Matrix &inMatrix )
 {
 	try
 	{
-		const DenseMatrixArmadillo &smat = dynamic_cast<const DenseMatrixArmadillo&>(inMatrix);
+		const DenseMatrix &smat = dynamic_cast<const DenseMatrix&>(inMatrix);
 		mMatrix = smat.mMatrix;
 		Matrix::mRows = inMatrix.Rows();
 		Matrix::mCols = inMatrix.Columns();
@@ -230,7 +230,7 @@ Matrix & DenseMatrixArmadillo::operator=( const Matrix &inMatrix )
 	return *this;
 }
 
-DenseMatrix & DenseMatrixArmadillo::operator=( const DenseMatrixArmadillo &inMatrix )
+DenseMatrix & DenseMatrix::operator=( const DenseMatrix &inMatrix )
 {
 	//mMatrix.resize( inMatrix.Rows(), inMatrix.Columns());
 	mMatrix = inMatrix.mMatrix;
@@ -240,7 +240,7 @@ DenseMatrix & DenseMatrixArmadillo::operator=( const DenseMatrixArmadillo &inMat
 	return *this;
 }
 
-DenseMatrix & DenseMatrixArmadillo::operator+=( const DenseMatrix &other )
+DenseMatrix & DenseMatrix::operator+=( const DenseMatrix &other )
 {
 	if ( Matrix::mRows != other.mRows or Matrix::mCols != other.mCols )
 		throw std::runtime_error( "matrix dimensions disgree during addition" );
@@ -252,7 +252,7 @@ DenseMatrix & DenseMatrixArmadillo::operator+=( const DenseMatrix &other )
 	return *this;
 }
 
-DenseMatrix & DenseMatrixArmadillo::operator*=( const DenseMatrix &other )
+DenseMatrix & DenseMatrix::operator*=( const DenseMatrix &other )
 {
 	if ( Matrix::mRows != other.mRows or Matrix::mCols != other.mCols )
 		throw std::runtime_error( "matrix dimensions disgree during element wise multiplication" );
@@ -265,7 +265,7 @@ DenseMatrix & DenseMatrixArmadillo::operator*=( const DenseMatrix &other )
 
 }
 
-DenseMatrix & DenseMatrixArmadillo::operator*=( float scalar )
+DenseMatrix & DenseMatrix::operator*=( float scalar )
 {
 	for ( int r = 0; r < mRows; ++r )
 		for ( int c = 0; c < mCols; ++c )
@@ -275,7 +275,7 @@ DenseMatrix & DenseMatrixArmadillo::operator*=( float scalar )
 
 }
 
-DenseMatrix & DenseMatrixArmadillo::operator-=( float scalar )
+DenseMatrix & DenseMatrix::operator-=( float scalar )
 {
 	for ( int r = 0; r < mRows; ++r )
 		for ( int c = 0; c < mCols; ++c )
@@ -285,7 +285,7 @@ DenseMatrix & DenseMatrixArmadillo::operator-=( float scalar )
 
 }
 
-DenseMatrix & DenseMatrixArmadillo::operator+=( float scalar )
+DenseMatrix & DenseMatrix::operator+=( float scalar )
 {
 	for ( int r = 0; r < mRows; ++r )
 		for ( int c = 0; c < mCols; ++c )
@@ -295,9 +295,9 @@ DenseMatrix & DenseMatrixArmadillo::operator+=( float scalar )
 
 }
 
-DenseMatrix DenseMatrixArmadillo::Transpose( void ) const
+DenseMatrix DenseMatrix::Transpose( void ) const
 {
-	DenseMatrixArmadillo temp;
+	DenseMatrix temp;
 	temp.mMatrix = this->mMatrix.t();
 
 	temp.mRows = mCols;

@@ -11,7 +11,7 @@ void
 SparseMatrix::Clear( void )
 {
 	mRows = mCols = 0;
-	mMatrix.clear();
+	mMatrix.resize(0,0);
 }
 
 bool SparseMatrix::Resize( int rows, int cols )

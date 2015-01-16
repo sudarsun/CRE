@@ -30,11 +30,30 @@
 
 #include "Typedefs.hpp"
 #include "Matrix.hpp"
+#include <iostream>
 
 float StandardDeviation( const real_array &inArray );
+
 real_array StandardDeviation( const Matrix &inMatrix );
+
 real_array StandardDeviation( const Matrix &inMatrix, const int_array &inCols );
+
 float Mean( const real_array &array );
+
 int_array Indices( const int_array &inArray, int inValue );
+
+int_array Indices( const Matrix &inColMatrix, int inValue );
+
+real_array ClassProportions( const Matrix &inLabels );
+
+float 	LpNorm( const real_array &ref, const real_array &test, int p = 2 );
+
+float 	Correlation( const real_array &ref, const real_array &test );
+
+std::ostream & operator<<( std::ostream &ioStream, const real_array &array ) ;
+
+real_array & operator += ( real_array &ioArray, const real_array &inArray );
+
+real_array & operator /= ( real_array &ioArray, float scale );
 
 #endif // __cre_utils_hpp__

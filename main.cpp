@@ -9,6 +9,7 @@
 #include "Data.hpp"
 #include "ClassRatioEstimator.hpp"
 #include "Stopwatch.hpp"
+#include "Utils.hpp"
 
 /* @TODO
  * 1. Save kernels
@@ -56,72 +57,42 @@ int main(int argc, char **argv)
 			std::cout << "using " << boost::thread::hardware_concurrency() << " threads .." << std::endl;
 	}
 
-	weights_t wts;
-	cre.BestKernel(trdata, tedata, wts);
+	int folds = 4;
+	cvdata_t cvdata;
+	trdata.GetCrossValidationDataSet(folds, cvdata);
 
-	real_array props = cre.ClassProportions(tedata.Labels());
-	for ( int i = 0; i < props.size(); ++i )
-		std::cout << "theta[" << i << "] = " << props[i] << std::endl;
+	real_array weights;
+	std::ofstream file("weights");
+	for ( int f = 0; f < folds; ++f )
+	{
+		file << "CV Iteration: " << f+1 << std::endl;
 
-	return -1;
-/*
-	RBFKernel_T kernel1(bw);
-	DenseMatrix K1;
+		const Data &train = cvdata[f].test;
+		const Data &eval = cvdata[f].train;
 
-	boost::chrono::steady_clock::time_point start = boost::chrono::steady_clock::now();
-	kernel1.Compute( tr_features, tr_features, K1 );
-	boost::chrono::steady_clock::time_point end = boost::chrono::steady_clock::now();
+		real_array wts;
+		cre.BestKernel(train, eval, wts);
+		weights += wts;
 
-	boost::chrono::steady_clock::duration diff = end - start;
-	boost::chrono::milliseconds diff_ms = boost::chrono::duration_cast<boost::chrono::milliseconds>(diff);
-	std::cout << "Multi-Threaded Kernel: " << diff_ms.count() << " mS" << std::endl;
+		std::cout << "Eval True Theta:\n" << ClassProportions(eval.Labels()) << std::endl;
+		std::cout << "Train True Theta:\n" << ClassProportions(train.Labels()) << std::endl;
 
-	std::ofstream file( "k1" );
-	K1 >> file;
-	file << std::endl;
-	file.close();
+		file << "Eval True Theta:\n" << ClassProportions(eval.Labels()) << std::endl;
+		file << "Train True Theta:\n" << ClassProportions(train.Labels()) << std::endl;
+		file << "Weights:\n" << wts << std::endl;
+	}
 
-	RBFKernel kernel2(bw);
-	DenseMatrix K2;
+	std::cout << "Combined Weights:\n" << weights << std::endl;
+	file << "Combined Weights:\n" << weights << std::endl;
 
-	boost::chrono::steady_clock::time_point start2 = boost::chrono::steady_clock::now();
-	kernel2.Compute( te_features, tr_features, K2 );
-	boost::chrono::steady_clock::time_point end2 = boost::chrono::steady_clock::now();
-
-	boost::chrono::steady_clock::duration diff2 = end2 - start2;
-	boost::chrono::milliseconds diff2_ms = boost::chrono::duration_cast<boost::chrono::milliseconds>(diff2);
-
-	std::cout << "\nSingle-Threaded Kernel: " << diff2_ms.count() << " mS" << std::endl;
-
-	std::ofstream file( "k2" );
-	K2 >> file;
-	file << std::endl;
-	file.close();
-
-	RBFKernel_Armadillo kernel3(bw);
-	DenseMatrix K3;
-
-	Stopwatch sw3;
-	kernel3.Compute( te_features, tr_features, K3 );
-	sw3.Stop();
-
-	std::cout << "\nSingle-Threaded Armadillo Kernel: " << sw3.Elapsed() << " mS" << std::endl;
-
-	std::ofstream file3( "k3" );
-	K3 >> file3;
-	file3 << std::endl;
-	file3.close();
-
-	return -1;
-*/
-	dense_matrix_array Krr, Kre;
+	DenseMatrix Krr, Ker;
 
 	Stopwatch sw;
-	cre.GetKernels( te_features, tr_features, Kre, bw, false, type );
+	cre.GetKernels( te_features, tr_features, Ker, bw, weights );
 	float re_time = sw.Elapsed();
 
 	sw.Restart();
-	cre.GetKernels( tr_features, tr_features, Krr, bw, false, type );
+	cre.GetKernels( tr_features, tr_features, Krr, bw, weights );
 	float rr_time = sw.Elapsed();
 
 	int noClasses = maxLabel;
@@ -134,15 +105,18 @@ int main(int argc, char **argv)
 
 	sw.Restart();
 	real_array prop;
-	cre.MMD( labels, noClasses, Krr[2], Kre[2], prop );
+	cre.MMD( labels, noClasses, Krr, Ker, prop );
 	float mmd_time = sw.Elapsed();
-
-	for ( int i = 0; i < prop.size(); ++i )
-		std::cout << "theta("<<i<<") = " << prop[i] << std::endl;
 
 	std::cerr << "Kers: " << re_time << " mS" << std::endl
 			  << "Krrs: " << rr_time << " mS" << std::endl
 			  << "MMD:  " << mmd_time << " mS" << std::endl;
+
+	real_array true_prop = ClassProportions(tedata.Labels());
+	std::cout << "True Prop:\n" << true_prop << std::endl;
+	std::cout << "Estimated Prop:\n" << prop << std::endl;
+	std::cout << "Correlation: " << Correlation(true_prop, prop) << std::endl;
+	std::cout << "L2 Norm: " << LpNorm(true_prop, prop) << std::endl;
 
     return 0;
 }

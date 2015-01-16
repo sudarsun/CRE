@@ -175,3 +175,99 @@ int_array Indices( const int_array &inArray, int inValue )
 
 	return indices;
 }
+
+int_array Indices( const Matrix &inColMat, int inValue )
+{
+	int_array indices;
+	int size = inColMat.Rows();
+	for ( int i = 0; i < size; ++i )
+		if ( int(inColMat(i,0)) == inValue )
+			indices.push_back( i );
+
+	return indices;
+}
+
+std::ostream & operator<<( std::ostream &ioStream, const real_array &array )
+{
+	for ( int i = 0; i < array.size(); ++i )
+		ioStream << i << ": " << array[i] << std::endl;
+
+	return ioStream;
+}
+
+real_array ClassProportions( const Matrix &inLabels )
+{
+	real_array props;
+
+	int R = inLabels.Rows();
+	for ( int r = 0; r < R; ++r )
+	{
+		int label = inLabels(r,0);
+		if ( label == 0 )
+			throw std::runtime_error("class labels should be positive");
+
+		if ( label > props.size() )
+			props.resize(label);
+
+		++props[label-1];
+	}
+
+	for ( int i = 0; i < props.size(); ++i )
+		props[i] /= (float)R;
+
+	return props;
+}
+
+float LpNorm( const real_array &ref, const real_array &test, int p )
+{
+	if ( ref.size() != test.size() )
+		throw std::runtime_error("class proportions length disagreement");
+
+	float error = 0.0;
+	for ( int i = 0; i < ref.size(); ++i )
+		error += pow(ref[i] - test[i], p);
+
+	return pow(error, (1.0/p));
+}
+
+float Correlation(const real_array& ref, const real_array& test)
+{
+	if ( ref.size() != test.size() )
+		throw std::runtime_error("class proportions length disagreement");
+
+	int N = ref.size();
+
+	float mean_ref = Mean(ref), mean_test = Mean(test);
+	float std_ref = StandardDeviation(ref), std_test = StandardDeviation(test);
+
+	float sum = 0;
+	for ( int i = 0; i < N; ++i )
+		sum += (ref[i] - mean_ref) * (test[i] - mean_test);
+
+	float corr = sum / ((N-1)*std_ref*std_test);
+	return corr;
+}
+
+real_array & operator += ( real_array &ioArray, const real_array &inArray )
+{
+	int size = ioArray.size();
+	if ( !size )
+		ioArray = inArray;
+
+	if ( size && size == inArray.size() )
+	{
+		for ( int i = 0; i < size; ++i )
+			ioArray[i] += inArray[i];
+	}
+
+	return ioArray;
+}
+
+real_array & operator /= ( real_array &ioArray, float scale )
+{
+	int size = ioArray.size();
+	for ( int i = 0; i < size; ++i )
+		ioArray /= scale;
+
+	return ioArray;
+}

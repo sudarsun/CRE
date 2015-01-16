@@ -27,10 +27,10 @@
 
 #include "Data.hpp"
 #include "LibSVMFormat.hpp"
+#include "Utils.hpp"
 #include <fstream>
 #include <algorithm>
 #include <iomanip>
-#include <boost/concept_check.hpp>
 
 Data& Data::operator=(const Data& inData )
 {

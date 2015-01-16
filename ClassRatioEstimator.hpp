@@ -48,14 +48,13 @@ public:
 	float 	BandwidthSelect( const Matrix &inMatrix ) const;
 
 	void	GetKernels( const Matrix &inA, const Matrix &inB, dense_matrix_array &outKernels, float inBandwidth, bool inMulti, KernelImplType type );
+	void	GetKernels( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, float inBandwidth, const real_array &inWts );
 
 	bool 	MMD( const DenseMatrix &inY, int inClasses, const DenseMatrix &inKrr, const DenseMatrix &inKre, real_array &outValues );
 
-	void	BestKernel( const Data &inTrain, const Data &inEval, weights_t &outWeights );
+	void	BestKernel( const Data &inTrain, const Data &inEval, real_array &outWeights );
 
-	real_array ClassProportions( const Matrix &inLabels ) const;
-	float 	LpNorm( const real_array &ref, const real_array &test, int p = 2 ) const;
-	float 	Correlation( const real_array &ref, const real_array &test ) const;
+
 };
 
 #endif // CLASSRATIOESTIMATOR_H
