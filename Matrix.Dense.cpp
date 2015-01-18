@@ -358,6 +358,18 @@ DenseMatrix & DenseMatrix::operator=( const DenseMatrix &inMatrix )
 	return *this;
 }
 
+void DenseMatrix::Perturb( float scale )
+{
+	for ( int r = 0; r < mRows; ++r )
+		for ( int c = 0; c < mCols; ++c )
+		{
+			float rnd = (float)rand()/(float)RAND_MAX;
+			rnd /= scale;
+
+			(*this)(r,c) += rnd;
+		}
+}
+
 DenseMatrix & DenseMatrix::operator+=( const DenseMatrix &other )
 {
 	if ( mRows != other.mRows or mCols != other.mCols )

@@ -281,6 +281,10 @@ void Data::Split(float inPercent, Data& outSplitA, Data& outSplitB) const
 
 void Data::GetCrossValidationDataSet(int &ioFolds, cvdata_t& outCVData)
 {
+    // randomize timer for better randperm() functionality.
+	time_t tim = time(NULL);
+	srand(tim);
+
 	int N = mLabels.Rows();
 	int D = mFeatures->Columns();
 

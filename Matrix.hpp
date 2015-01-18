@@ -183,6 +183,13 @@ public:
 
 	DenseMatrix Transpose( void ) const;
 
+	void Perturb( float scale );
+
+	void Zeroize( void )
+	{
+		mMatrix.clear();
+	}
+
 	enum Order_t
 	{
 		eRowWise,

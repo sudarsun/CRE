@@ -195,6 +195,14 @@ std::ostream & operator<<( std::ostream &ioStream, const real_array &array )
 	return ioStream;
 }
 
+std::ostream & operator<<( std::ostream &ioStream, const double_array &array )
+{
+	for ( int i = 0; i < array.size(); ++i )
+		ioStream << i << ": " << array[i] << std::endl;
+
+	return ioStream;
+}
+
 real_array ClassProportions( const Matrix &inLabels )
 {
 	real_array props;
@@ -221,11 +229,11 @@ real_array ClassProportions( const Matrix &inLabels )
 float LpNorm( const real_array &ref, const real_array &test, int p )
 {
 	if ( ref.size() != test.size() )
-		throw std::runtime_error("class proportions length disagreement");
+		throw std::runtime_error("lpnorm: class proportions length disagreement");
 
 	float error = 0.0;
 	for ( int i = 0; i < ref.size(); ++i )
-		error += pow(ref[i] - test[i], p);
+		error += pow(fabs(ref[i] - test[i]), p);
 
 	return pow(error, (1.0/p));
 }
@@ -233,7 +241,7 @@ float LpNorm( const real_array &ref, const real_array &test, int p )
 float Correlation(const real_array& ref, const real_array& test)
 {
 	if ( ref.size() != test.size() )
-		throw std::runtime_error("class proportions length disagreement");
+		throw std::runtime_error("correlation: class proportions length disagreement");
 
 	int N = ref.size();
 
@@ -246,6 +254,24 @@ float Correlation(const real_array& ref, const real_array& test)
 
 	float corr = sum / ((N-1)*std_ref*std_test);
 	return corr;
+}
+
+float Cosine(const real_array& ref, const real_array& test)
+{
+	if ( ref.size() != test.size() )
+		throw std::runtime_error("cosine: class proportions length disagreement");
+
+	int N = ref.size();
+
+	float sum_ref = 0, sum_test = 0, prod = 0;
+	for ( int i = 0; i < N; ++i )
+	{
+		sum_ref += ref[i]*ref[i];
+		sum_test += test[i]*test[i];
+		prod += ref[i] * test[i];
+	}
+
+	return prod/sqrt(sum_ref * sum_test);
 }
 
 real_array & operator += ( real_array &ioArray, const real_array &inArray )

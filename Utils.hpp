@@ -50,7 +50,10 @@ float 	LpNorm( const real_array &ref, const real_array &test, int p = 2 );
 
 float 	Correlation( const real_array &ref, const real_array &test );
 
+float 	Cosine( const real_array &ref, const real_array &test );
+
 std::ostream & operator<<( std::ostream &ioStream, const real_array &array ) ;
+std::ostream & operator<<( std::ostream &ioStream, const double_array &array ) ;
 
 real_array & operator += ( real_array &ioArray, const real_array &inArray );
 
