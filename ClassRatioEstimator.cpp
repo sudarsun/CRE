@@ -35,7 +35,7 @@
 #include <cfloat>
 #include <armadillo>
 
-static const float kCorrelationThreshold = 0.8; // 0.95; worked for satimage
+static const float kCorrelationThreshold = 0.90;
 
 float ClassRatioEstimator::BandwidthSelect(const Matrix& inMatrix) const
 {
@@ -85,7 +85,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 
 	float bandwidth = BandwidthSelect( train );
 
-	float corr = -FLT_MIN;
+	float sim_score = -FLT_MIN;
 	int best_kernel = -1;
 	real_array best_props;
 
@@ -120,32 +120,36 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 
 		float mmd_time = sw.Elapsed();
 
-		float corr_now = Cosine( yte_props, props_estimated );
-		if ( corr_now > corr )
+		float sim_score_now = L1Score( yte_props, props_estimated );
+		if ( sim_score_now > sim_score )
 		{
 			best_kernel = k;
-			corr = corr_now;
+			sim_score = sim_score_now;
 			best_props = props_estimated;
 		}
 
-		if ( corr_now >= kCorrelationThreshold )
+		if ( sim_score_now >= kCorrelationThreshold )
 		{
-			Krr *= corr_now;
+			Krr *= sim_score_now;
 			superKrr += Krr;
 
-			Ker *= corr_now;
+			Ker *= sim_score_now;
 			superKer += Ker;
 
-			superWt += corr_now;
+			superWt += sim_score_now;
 
-			outWeights[k] = corr_now;
+			outWeights[k] = sim_score_now;
 		}
 
-		std::cout << "Dim[" << k << "] CORR=" << corr_now << " {bestCORR=" << corr << "(" << best_kernel << ")} "
+		std::cout << "Dim[" << k << "] SIM=" << sim_score_now << " {bestSIM=" << sim_score << "(" << best_kernel << ")} "
 					<< "krr: " << krr_time << "mS "
 					<< "ker: " << ker_time << "mS "
-					<< "mmd: " << mmd_time << "mS "
-					<< std::endl;
+					<< "mmd: " << mmd_time << "mS ";
+
+		if ( sim_score_now >= kCorrelationThreshold )
+			std::cout << "SELECTED ";
+
+		std::cout << std::endl;
 	}
 
 	for ( int i = -6; i <= 6; ++i, ++k )
@@ -169,63 +173,78 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 
 		float mmd_time = sw.Elapsed();
 
-		float mse_now = Cosine( yte_props, props_estimated );
-		//if ( mse_now < mse )
-		if ( mse_now > corr )
+		float sim_score_now = L1Score( yte_props, props_estimated );
+		if ( sim_score_now > sim_score )
 		{
 			best_kernel = k;
-			corr = mse_now;
+			sim_score = sim_score_now;
 			best_props = props_estimated;
 		}
 
-		if (mse_now >= kCorrelationThreshold)
+		if (sim_score_now >= kCorrelationThreshold)
 		{
-			Krr *= mse_now;
+			Krr *= sim_score_now;
 			superKrr += Krr;
 
-			Ker *= mse_now;
+			Ker *= sim_score_now;
 			superKer += Ker;
 
-			superWt = mse_now;
+			superWt = sim_score_now;
 
-			outWeights[k] = mse_now;
+			outWeights[k] = sim_score_now;
 		}
 
-		std::cout << "Multi[" << k << "] CORR=" << mse_now << " {bestCORR=" << corr << "(" << best_kernel << ")} "
+		std::cout << "Multi[" << k << "] SIM=" << sim_score_now << " {bestSIM=" << sim_score << "(" << best_kernel << ")} "
 					<< "krr: " << krr_time << "mS "
 					<< "ker: " << ker_time << "mS "
-					<< "mmd: " << mmd_time << "mS "
-					<< std::endl;
+					<< "mmd: " << mmd_time << "mS ";
+
+		if ( sim_score_now >= kCorrelationThreshold )
+			std::cout << "SELECTED ";
+
+		std::cout << std::endl;
 	}
 
 	std::cout << "Best Theta:\n" << best_props << std::endl;
 	std::cout << "L1 norm: " << LpNorm( best_props, yte_props, 1 ) << std::endl;
+	std::cout << "L1 simi: " << L1Score( best_props, yte_props ) << std::endl;
+	std::cout << "Cosine : " << Cosine( best_props, yte_props ) << std::endl;
+	std::cout << "Correlation: " << Correlation( best_props, yte_props ) << "\n" << std::endl;
 
 	superKrr *= (1.0/superWt);
 	superKer *= (1.0/superWt);
 
-	float super_correlation = -1;
+	float super_sim_score = -1;
 	real_array props_estimated;
 	if ( MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, superKrr, superKer, props_estimated ))
 	{
 		std::cout << "Super Theta:\n" << props_estimated << std::endl;
 
-		super_correlation = Cosine( props_estimated, yte_props );
-		std::cout << "super correlation: " << super_correlation << std::endl;
-		std::cout << "L1 norm: " << LpNorm( props_estimated, yte_props, 1 ) << std::endl;
+		std::cout << "Super L1 norm: " << LpNorm( props_estimated, yte_props, 1 ) << std::endl;
+		std::cout << "Super L1 simi: " << L1Score( props_estimated, yte_props ) << std::endl;
+		std::cout << "Super Cosine: " << Cosine( props_estimated, yte_props ) << std::endl;
+		std::cout << "Super Correlation: " << Correlation( props_estimated, yte_props ) << "\n" << std::endl;
+
+		super_sim_score = L1Score( props_estimated, yte_props );
 
 		// super kernel didn't contribute, so use the best kernel with binary weights.
-		// if super kernel is 10% less than single kernel estimate, we shall override,
+		// if super kernel is 1% less than single kernel estimate, we shall override,
 		// otherwise stick to super kernel.
-		if ( (super_correlation+0.1) < corr )
+		if ( (super_sim_score+0.01) < sim_score )
 		{
+			std::cout << "\nUsed Sparse MKL Kernel!\n" << std::endl;
 			outWeights.clear();
 			outWeights.resize( dims + 13 );
 			outWeights[best_kernel] = 1;
 		}
+		else
+		{
+			std::cout << "\nUsed Super Kernel!\n" << std::endl;
+		}
 	}
 	else // super kernel failed, so use the best kernel with binary weights.
 	{
+		std::cout << "\nUsed Sparse MKL Kernel!\n" << std::endl;
 		outWeights.clear();
 		outWeights.resize( dims + 13 );
 		outWeights[best_kernel] = 1;
