@@ -69,90 +69,105 @@ int main(int argc, char **argv)
 
 	int folds = atoi(argv[3]);
 
-//	cvdata_t cvdata(folds);
-
 	cvdata_t cvdata;
 	trdata.GetCrossValidationDataSet(folds, cvdata);
 
-	real_array weights;
+	std::vector<real_array> estimated_props(folds);
+	real_array sim_scores(folds);
+
 	std::ofstream file("weights");
 	for ( int f = 0; f < folds; ++f )
 	{
 		file << "CV Iteration: " << f+1 << std::endl;
-/*
-		char name[50];
-		sprintf( name, "cvdata-train-%d", f );
-		cvdata[f].test.Load(name);
-		sprintf( name, "cvdata-test-%d", f );
-		cvdata[f].train.Load( name );
-*/
+
 		const Data &train = cvdata[f].test;
 		const Data &eval = cvdata[f].train;
 
-		real_array wts;
-		cre.BestKernel(train, eval, wts);
-		weights += wts;
+		real_array weights;
+		cre.BestKernel(train, eval, weights);
 
-		std::cout << "Eval True Theta:\n" << ClassProportions(eval.Labels()) << std::endl;
-		std::cout << "Train True Theta:\n" << ClassProportions(train.Labels()) << std::endl;
+		std::cout << "\nEval True Theta:\n" << ClassProportions(eval.Labels()) << std::endl;
+		std::cout << "\nTrain True Theta:\n" << ClassProportions(train.Labels()) << std::endl;
 
-		file << "Eval True Theta:\n" << ClassProportions(eval.Labels()) << std::endl;
-		file << "Train True Theta:\n" << ClassProportions(train.Labels()) << std::endl;
-		file << "Weights:\n" << wts << std::endl;
-	}
+		//file << "Eval True Theta:\n" << ClassProportions(eval.Labels()) << std::endl;
+		//file << "Train True Theta:\n" << ClassProportions(train.Labels()) << std::endl;
+		//file << "Weights:\n" << weights << std::endl;
 
-	std::cout << "Combined Weights:\n" << weights << std::endl;
-	file << "Combined Weights:\n" << weights << std::endl;
+		DenseMatrix Krr, Ker;
 
-	DenseMatrix Krr, Ker;
+		std::cout << "\nU-L Kernels.." << std::endl;
 
-	Stopwatch sw;
-	cre.GetKernels( te_features, tr_features, Ker, bw, weights );
-	float re_time = sw.Elapsed();
+		Stopwatch sw;
+		cre.GetKernels( te_features, tr_features, Ker, bw, weights );
+		float re_time = sw.Elapsed();
 
-	sw.Restart();
-	cre.GetKernels( tr_features, tr_features, Krr, bw, weights );
-	float rr_time = sw.Elapsed();
+		std::cout << "\nL-L Kernels.." << std::endl;
 
-	int noClasses = maxLabel;
-	DenseMatrix labels = dynamic_cast<const DenseMatrix &>(tr_labels);
-	if ( minLabel == 0 )
-	{
-		labels += 1;
-		noClasses = maxLabel + 1;  // including the 0 as a label.
-	}
+		sw.Restart();
+		cre.GetKernels( tr_features, tr_features, Krr, bw, weights );
+		float rr_time = sw.Elapsed();
 
-	real_array true_prop = ClassProportions(tedata.Labels());
-	std::cout << "True Prop:\n" << true_prop << std::endl;
-
-	sw.Restart();
-	real_array prop;
-	if ( cre.MMD( labels, noClasses, Krr, Ker, prop ) )
-	{
-		std::cout << "Estimated Prop:\n" << prop << std::endl;
-		std::cout << "Correlation: " << Correlation(true_prop, prop) << std::endl;
-		std::cout << "Cosine Sim : " << Cosine(true_prop, prop) << std::endl;
-		std::cout << "L1 Norm: " << LpNorm(true_prop, prop, 1) << std::endl;
-		std::cout << "L1 Norm Corr: " << (1 - LpNorm(true_prop, prop, 1)/noClasses) << std::endl;
-	}
-	else
-	{
-		std::cout << "MMD Failed\n" << std::endl;
-		for ( int f = 0; f < folds; ++f )
+		int noClasses = maxLabel;
+		DenseMatrix labels = dynamic_cast<const DenseMatrix &>(tr_labels);
+		if ( minLabel == 0 )
 		{
-			char name[50];
-			sprintf( name, "cvdata-train-%d", f );
-			cvdata[f].test.Save( name );
-			sprintf( name, "cvdata-test-%d", f );
-			cvdata[f].train.Save( name );
+			labels += 1;
+			noClasses = maxLabel + 1;  // including the 0 as a label.
 		}
+
+		real_array true_prop = ClassProportions(tedata.Labels());
+		std::cout << "\nTrue Prop:\n" << true_prop << std::endl;
+
+		sw.Restart();
+		if ( cre.MMD( labels, noClasses, Krr, Ker, estimated_props[f] ) )
+		{
+			const real_array &prop = estimated_props[f];
+			std::cout << "Estimated Prop:\n" << prop << std::endl;
+			std::cout << "L1 Norm: " << LpNorm(true_prop, prop, 1) << std::endl;
+			std::cout << "L1 Norm Corr: " << L1Score(true_prop, prop) << std::endl;
+			std::cout << "Cosine Sim : " << Cosine(true_prop, prop) << std::endl;
+			std::cout << "Correlation: " << Correlation(true_prop, prop) << "\n" << std::endl;
+
+			sim_scores[f] = L1Score(true_prop, prop);
+		}
+		else
+		{
+			std::cout << "MMD Failed\n" << std::endl;
+		}
+
+		float mmd_time = sw.Elapsed();
+
+		std::cerr << "Kers: " << re_time << " mS" << std::endl
+				<< "Krrs: " << rr_time << " mS" << std::endl
+				<< "MMD:  " << mmd_time << " mS" << std::endl;
+
 	}
 
-	float mmd_time = sw.Elapsed();
+	float denom = 0, conf_denom = 0;
+	real_array props, conf_props;
+	for ( int f = 0; f < folds; ++f )
+	{
+		real_array prop = estimated_props[f];
+		prop *= sim_scores[f];
 
-	std::cerr << "Kers: " << re_time << " mS" << std::endl
-			  << "Krrs: " << rr_time << " mS" << std::endl
-			  << "MMD:  " << mmd_time << " mS" << std::endl;
+		if ( sim_scores[f] >= 0.95 )
+		{
+			conf_denom += sim_scores[f];
+			conf_props += prop;
+		}
+
+		props += prop;
+		denom += sim_scores[f];
+	}
+
+	if ( conf_denom )
+	{
+		conf_props /= conf_denom;
+		std::cout << "Estimated Final Prop (Confident): \n" << conf_props << std::endl;
+	}
+
+	props /= denom;
+	std::cout << "Estimated Final Prop:\n" << props << std::endl;
 
 	} catch ( std::exception &e ) {
 		std::cerr << e.what() << std::endl;
