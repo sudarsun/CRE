@@ -304,6 +304,8 @@ void Data::GetCrossValidationDataSet(int &ioFolds, cvdata_t& outCVData)
 	std::vector<Data> data(ioFolds);
 	for ( int p = 0, f = 0; p < N and f < ioFolds; p+=partition_size, ++f )
 	{
+		bool col_preserved = false;
+
 		std::stringstream labels, features;
 		for ( int id = p; id < (p+partition_size) and id < N; ++id )
 		{
@@ -316,12 +318,24 @@ void Data::GetCrossValidationDataSet(int &ioFolds, cvdata_t& outCVData)
 					labels << mLabels(index, 0) << std::endl;
 			}
 
+
 			for ( int d = 0; d < D; ++d )
 			{
 				if ( !mIsShallow )
 					features << (*mFeatures)(index, d) << " ";
 				else if ( mFeatures->Exists( index, d ) )
+				{
 					features << (d+1) << ":" << (*mFeatures)(index, d) << " ";
+					if ( !col_preserved and (d+1) == D )
+						col_preserved = true;
+				}
+			}
+
+			// preseve the column size in sparse matrices.
+			if ( mIsShallow and !col_preserved )
+			{
+				features << D << ":0";
+				col_preserved = true;
 			}
 
 			features << std::endl;
