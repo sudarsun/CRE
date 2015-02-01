@@ -43,6 +43,12 @@ int main(int argc, char **argv)
 	int minLabel = trdata.MinLabel();
 	int maxLabel = trdata.MaxLabel();
 
+	if ( minLabel <= 0 )
+	{
+		std::cerr << "minLabel=" << minLabel << ": labels are not positive, consider reordering the class labels!\n" << std::endl;
+		return -1;
+	}
+
 	const Matrix &tr_features = trdata.Features();
 	const Matrix &tr_labels = trdata.Labels();
 	const Matrix &te_features = tedata.Features();
