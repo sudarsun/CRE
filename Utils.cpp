@@ -1,4 +1,5 @@
 #include "Utils.hpp"
+#include <cmath>
 
 float StandardDeviation( const real_array &inArray )
 {
@@ -233,10 +234,24 @@ float LpNorm( const real_array &ref, const real_array &test, int p )
 
 	float error = 0.0;
 	for ( int i = 0; i < ref.size(); ++i )
-		error += pow(fabs(ref[i] - test[i]), p);
+		error += powf(fabs(ref[i] - test[i]), p);
 
-	return pow(error, (1.0/p));
+	return powf(error, (1.0/p));
 }
+
+float L1Score(const real_array& ref, const real_array& test)
+{
+	const float p = 1;
+	float Lp = LpNorm(ref, test, p);
+
+	// L1 norm has a range of 0.0 to 2.0^(1/p); Where 0.0 means very close and 2.0^(1/p) is completely off.
+	// So, scaling it by multiplying with 2^(1/p).
+	float Lpnorm = Lp / powf(2, (1.0/p));
+
+	// similarity score is complement of L1norm.
+	return 1.0 - Lpnorm;
+}
+
 
 float Correlation(const real_array& ref, const real_array& test)
 {
@@ -293,7 +308,16 @@ real_array & operator /= ( real_array &ioArray, float scale )
 {
 	int size = ioArray.size();
 	for ( int i = 0; i < size; ++i )
-		ioArray /= scale;
+		ioArray[i] /= scale;
+
+	return ioArray;
+}
+
+real_array & operator *= ( real_array &ioArray, float scale )
+{
+	int size = ioArray.size();
+	for ( int i = 0; i < size; ++i )
+		ioArray[i] *= scale;
 
 	return ioArray;
 }
