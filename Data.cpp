@@ -128,7 +128,7 @@ bool Data::Load( std::istream& inMatrix, std::istream& inLabelColumnMatrix)
 	return true;
 }
 
-bool Data::Save(const std::string& outFile)
+bool Data::Save(const std::string& outFile) const
 {
 	if ( mIsShallow )
 	{
@@ -149,6 +149,38 @@ bool Data::Save(const std::string& outFile)
 		mLabels >> labels;
 		labels.close();
 	}
+}
+
+void Data::Load(const std::string& inName)
+{
+	if ( LibSVMFormat::CheckFormat( inName ) )
+	{
+		mIsShallow = true;
+		mFeatures = new SparseMatrix();
+		bool result = LibSVMFormat::Read( inName, *(dynamic_cast<SparseMatrix*>(mFeatures)), mLabels );
+
+		// if the labels are starting from 0, change that to start-by-1.
+		if ( mLabels.Rows() and mLabels.Min(DenseMatrix::eWholesome)(0,0) == 0 )
+			mLabels += 1;
+
+		return;
+	}
+
+	std::ifstream ffile( (inName + ".features").c_str() );
+	std::ifstream lfile( (inName + ".labels").c_str() );
+
+	if ( ffile.good() )
+	{
+		mFeatures = new DenseMatrix();
+		*mFeatures << ffile;
+
+		if ( lfile.good() )
+			mLabels << lfile;
+
+		return;
+	}
+
+	throw std::invalid_argument("input data is neither shallow or dense");
 }
 
 Data& Data::Append(const Data& inData)
@@ -196,10 +228,11 @@ void Data::RandomPermute(Data& outPermuted) const
 
 		for ( int c = 0; c < D; ++c )
 		{
+			const Matrix &features = *mFeatures;
 			if ( !mIsShallow )
-				ss << (*mFeatures)(r,c) <<  " ";
+				ss << features(r,c) <<  " ";
 			if ( mFeatures->Exists(r,c) )
-				ss << (c+1) << ":" << (*mFeatures)(r,c) << " ";
+				ss << (c+1) << ":" << features(r,c) << " ";
 		}
 
 		ss << std::endl;
@@ -238,10 +271,11 @@ void Data::Split(float inPercent, Data& outSplitA, Data& outSplitB) const
 
 			for ( int c = 0; c < D; ++c )
 			{
+				const Matrix &features = *mFeatures;
 				if ( !mIsShallow )
-					ss << (*mFeatures)(r,c) <<  " ";
+					ss << features(r,c) <<  " ";
 				if ( mFeatures->Exists(r,c) )
-					ss << (c+1) << ":" << (*mFeatures)(r,c) << " ";
+					ss << (c+1) << ":" << features(r,c) << " ";
 			}
 
 			ss << std::endl;
@@ -265,10 +299,11 @@ void Data::Split(float inPercent, Data& outSplitA, Data& outSplitB) const
 
 			for ( int c = 0; c < D; ++c )
 			{
+				const Matrix &features = *mFeatures;
 				if ( !mIsShallow )
-					ss << (*mFeatures)(r,c) <<  " ";
+					ss << features(r,c) <<  " ";
 				if ( mFeatures->Exists(r,c) )
-					ss << (c+1) << ":" << (*mFeatures)(r,c) << " ";
+					ss << (c+1) << ":" << features(r,c) << " ";
 			}
 
 			ss << std::endl;
@@ -277,6 +312,51 @@ void Data::Split(float inPercent, Data& outSplitA, Data& outSplitB) const
 		outSplitB.Load(ss, labels);
 	}
 
+}
+
+void Data::SaveCrossValidationDataSet(const cvdata_t& inCVData, const std::string& inName)
+{
+	for ( int i = 0; i < inCVData.size(); ++i )
+	{
+		char name[200];
+		sprintf( name, "%s-%d.train", inName.c_str(), i+1 );
+		inCVData[i].train.Save(name);
+
+		sprintf( name, "%s-%d.test", inName.c_str(), i+1 );
+		inCVData[i].test.Save(name);
+	}
+}
+
+void Data::LoadCrossValidationDataSet(const std::string& inName, cvdata_t& outCVData)
+{
+	bool status = false;
+	int i = 0;
+
+	// don't expect the CV folds to be more than 100! sigh!
+	outCVData.resize(100);
+
+	do
+	{
+		char tr_name[200];
+		sprintf( tr_name, "%s-%d.train", inName.c_str(), i+1 );
+		char te_name[200];
+		sprintf( te_name, "%s-%d.test", inName.c_str(), i+1 );
+
+		std::ifstream ffile( tr_name ), lfile( te_name );
+		status = ffile.good() and lfile.good();
+		if (!status)
+			break;
+
+		dataset_t &data = outCVData[i];
+		data.train.Load(tr_name);
+		data.test.Load(te_name);
+
+		++i;
+	}
+	while( status );
+
+	// now reset to the actual folds.
+	outCVData.resize(i);
 }
 
 void Data::GetCrossValidationDataSet(int &ioFolds, cvdata_t& outCVData)
@@ -321,11 +401,12 @@ void Data::GetCrossValidationDataSet(int &ioFolds, cvdata_t& outCVData)
 
 			for ( int d = 0; d < D; ++d )
 			{
+				const Matrix &feat = *mFeatures;
 				if ( !mIsShallow )
-					features << (*mFeatures)(index, d) << " ";
+					features << feat(index, d) << " ";
 				else if ( mFeatures->Exists( index, d ) )
 				{
-					features << (d+1) << ":" << (*mFeatures)(index, d) << " ";
+					features << (d+1) << ":" <<  feat(index,d) << " ";
 					if ( !col_preserved and (d+1) == D )
 						col_preserved = true;
 				}

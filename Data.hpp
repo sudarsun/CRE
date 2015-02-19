@@ -79,8 +79,11 @@ public:
 	/**
 	 * @param inMatrix can be a libsvm formatted matrix or a plain dense matrix.
 	 */
-	bool	Load( const std::string &inMatrix, const std::string &inLabelColumnMatrix = kNullString );
+	bool	Load( const std::string &inMatrix, const std::string &inLabelColumnMatrix );
 	bool 	Load( std::istream &inMatrix, std::istream &inLabelColumnMatrix );
+	void	Load( const std::string &inName );
+	bool 	Save( const std::string &outFile ) const;
+
 
 	/// Split the data into test and train based on a split percentage.
 	void	Split( float inPercent, Data &outSplitA, Data &outSplitB ) const;
@@ -99,10 +102,22 @@ public:
 	/// Generate dataset tuples < train,test > for performing n-fold Cross Validation.
 	void	GetCrossValidationDataSet( int &ioFolds, cvdata_t &outCVData );
 
+	static void SaveCrossValidationDataSet( const cvdata_t &inCVData, const std::string &inName );
+	static void	LoadCrossValidationDataSet( const std::string &inName, cvdata_t &outCVData );
+
 	const Matrix & 		Features( void ) const;
 	const Matrix & 		Labels( void ) const;
 
-	bool 	Save( const std::string &outFile );
+	Matrix & Features( void )
+	{
+		return *mFeatures;
+	}
+
+	DenseMatrix & Labels( void )
+	{
+		return mLabels;
+	}
+
 
 private:
 
