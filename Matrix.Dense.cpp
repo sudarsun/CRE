@@ -303,13 +303,13 @@ void DenseMatrix::operator<<(std::istream& is )
 	mCols = mMatrix.size2();
 }
 
-void DenseMatrix::operator>>(std::ostream& os )
+void DenseMatrix::operator>>(std::ostream& os ) const
 {
 	for ( int r = 0; r < mRows; ++r )
 	{
 		for ( int c = 0; c < mCols; ++c )
 		{
-			os << std::setprecision(5) << mMatrix.at_element(r, c) << " ";
+			os << std::setprecision(5) << mMatrix(r, c) << " ";
 		}
 
 		os << std::endl;

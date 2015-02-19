@@ -67,7 +67,7 @@ public:
 	virtual void operator << ( std::istream & ) = 0;
 
 	/// write the matrix to an output stream
-	virtual void operator >> ( std::ostream & ) = 0;
+	virtual void operator >> ( std::ostream & ) const = 0;
 
 	/// Append the matrix with the new matrix with columns size agreement.
 	virtual void Append( const Matrix & ) = 0;
@@ -171,7 +171,7 @@ public:
 	void operator << ( std::istream & );
 
 	/// write the matrix to an output stream
-	void operator >> ( std::ostream & );
+	void operator >> ( std::ostream & ) const;
 
 	void Append( const Matrix & );
 
@@ -268,7 +268,7 @@ public:
 	void operator << ( std::istream & );
 
 	/// write the matrix to an output stream
-	void operator >> ( std::ostream & );
+	void operator >> ( std::ostream & ) const;
 
 	void Append( const Matrix & );
 
@@ -348,7 +348,7 @@ public:
 	void operator << ( std::istream & );
 
 	/// write the matrix to an output stream
-	void operator >> ( std::ostream & );
+	void operator >> ( std::ostream & ) const;
 
 	/// existence check of a cell.
 	bool Exists( int row, int col ) const;

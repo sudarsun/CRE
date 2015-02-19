@@ -96,13 +96,13 @@ void SparseMatrix::operator<<(std::istream& is )
 	mCols = mMatrix.size2();
 }
 
-void SparseMatrix::operator>>(std::ostream& os )
+void SparseMatrix::operator>>(std::ostream& os ) const
 {
 	for ( int r = 0; r < mRows; ++r )
 	{
 		for ( int c = 0; c < mCols; ++c )
 		{
-			float *f = mMatrix.find_element(r, c);
+			float *f = (const_cast<boost::numeric::ublas::compressed_matrix<float> &> (mMatrix)).find_element(r, c);
 			if ( f )
 				os << *f << " ";
 			else
