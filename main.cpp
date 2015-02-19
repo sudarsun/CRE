@@ -10,6 +10,8 @@
 #include "ClassRatioEstimator.hpp"
 #include "Stopwatch.hpp"
 #include "Utils.hpp"
+#include <armadillo>
+#include "Tester.hpp"
 
 /* @TODO
  * 1. Save kernels
@@ -24,13 +26,78 @@
 // usage: <tr-data> <val-data>
 int main(int argc, char **argv)
 {
+	/*
+	std::ifstream file( argv[1] );
+
+	Data d1;
+	d1.Load(argv[1]);
+
+	Data d2;
+	d2.Load(argv[2]);
+
+	const Matrix &f1 = d1.Features();
+	const Matrix &f2 = d2.Features();
+
+	const SparseMatrix &s1 = dynamic_cast<const SparseMatrix &>(f1);
+	const Matrix &l1 = d1.Labels();
+
+	const SparseMatrix &s2 = dynamic_cast<const SparseMatrix &>(f2);
+	const Matrix &l2 = d2.Labels();
+
+	Stopwatch timer;
+
+	int folds = 3;
+	cvdata_t cv;
+	d1.GetCrossValidationDataSet( folds, cv );
+
+	d1.SaveCrossValidationDataSet( cv, "cvtest2" );
+
+	/*
+	for ( int i = 0; i < 13; ++i )
+	{
+		float r = arma::randn();
+		RBFKernel_Armadillo kernel(r);
+		DenseMatrix K;
+
+		Stopwatch tm;
+		kernel.Compute( s1, s2, K );
+		std::cerr << tm.Elapsed() << " ";
+	}
+
+	std::cerr << "\nMulti: " << timer.Elapsed() << " mS" << std::endl;
+	timer.Restart();
+
+	int fcount = f1.Columns();
+	for ( int i = 0; i < fcount; ++i )
+	{
+		int_array cols;
+		cols.push_back(i);
+
+		float r = arma::randn();
+		RBFKernel_Armadillo kernel(r);
+		DenseMatrix K;
+
+		Stopwatch tm;
+		kernel.Compute( s1, s2, K, cols );
+		std::cerr << tm.Elapsed() << " ";
+	}
+
+	float tt = timer.Elapsed();
+
+	std::cerr << "Kernel Time: " << tt << " mS" << std::endl;
+//	K >> std::cout;
+
+	return -1;
+*/
 	if ( argc < 4 )
 	{
-		std::cerr << argv[0] << " <tr-data> <val-data> <cvfolds> [type=0:naive,1:threaded_naive,2:armadillo]\n" << std::endl;
+		std::cerr << argv[0] << " <tr-data> <val-data> <cvfolds> [cvdata]\n" << std::endl;
 		return -1;
 	}
 
 	try {
+
+		Stopwatch sw1;
 
 	Data trdata;
 	std::string filename(argv[1]);
@@ -56,30 +123,26 @@ int main(int argc, char **argv)
 	ClassRatioEstimator cre;
 	float bw = cre.BandwidthSelect( tr_features );
 
-	KernelImplType type = eNAIVE;
-	if ( argc > 4  )
-	{
-		int t = atoi(argv[4]);
-		if ( t >= 0 and t <= 2 )
-			type = (KernelImplType)t;
-
-		if ( type == eNAIVE_THREADED )
-			std::cout << "using " << boost::thread::hardware_concurrency() << " threads .." << std::endl;
-	}
-
 	int folds = atoi(argv[3]);
 
 	cvdata_t cvdata;
-	trdata.GetCrossValidationDataSet(folds, cvdata);
+
+	if ( argc > 4 )
+	{
+		std::cout << "loading CV data from: " << argv[4] << std::endl;
+		Data::LoadCrossValidationDataSet( argv[4], cvdata );
+	}
+	else
+		trdata.GetCrossValidationDataSet(folds, cvdata);
+
+	sw1.Stop();
+	std::cout << "loaded in: " << sw1.Elapsed() << " mS" << std::endl;
 
 	std::vector<real_array> estimated_props(folds);
 	real_array sim_scores(folds);
 
-	std::ofstream file("weights");
 	for ( int f = 0; f < folds; ++f )
 	{
-		file << "CV Iteration: " << f+1 << std::endl;
-
 		const Data &train = cvdata[f].test;
 		const Data &eval = cvdata[f].train;
 
@@ -88,10 +151,6 @@ int main(int argc, char **argv)
 
 		std::cout << "\nEval True Theta:\n" << ClassProportions(eval.Labels()) << std::endl;
 		std::cout << "\nTrain True Theta:\n" << ClassProportions(train.Labels()) << std::endl;
-
-		//file << "Eval True Theta:\n" << ClassProportions(eval.Labels()) << std::endl;
-		//file << "Train True Theta:\n" << ClassProportions(train.Labels()) << std::endl;
-		//file << "Weights:\n" << weights << std::endl;
 
 		DenseMatrix Krr, Ker;
 
@@ -164,6 +223,8 @@ int main(int argc, char **argv)
 	{
 		conf_props /= conf_denom;
 		std::cout << "Estimated Final Prop (Confident): \n" << conf_props << std::endl;
+		real_array true_prop = ClassProportions(tedata.Labels());
+		std::cout << "L1-score: " << L1Score(conf_props, true_prop) << std::endl;
 	}
 
 	props /= denom;
