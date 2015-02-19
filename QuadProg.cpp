@@ -1,5 +1,6 @@
 #include "QuadProg.hpp"
 #include <cstdio>
+#include <memory>
 
 /*
    Copyright: Copyright (c) MOSEK ApS, Denmark. All rights reserved.
@@ -35,16 +36,6 @@ int QuadProg( const Qdata &q, double *c, int classes, real_array &outValues )
   double        blc[] = {1.0};
   double        buc[] = {+MSK_INFINITY};
 
-//   MSKboundkeye  bkx[] = {MSK_BK_LO,
-//                          MSK_BK_LO,
-//                          MSK_BK_LO};
-//   double        blx[] = {0.0,
-//                          0.0,
-//                          0.0};
-//   double        bux[] = {+MSK_INFINITY,
-//                          +MSK_INFINITY,
-//                          +MSK_INFINITY};
-
 	MSKboundkeye *bkx = new MSKboundkeye[classes];
 	double *blx = new double[classes],
 	       *bux = new double[classes];
@@ -53,6 +44,11 @@ int QuadProg( const Qdata &q, double *c, int classes, real_array &outValues )
 				*aptre = new MSKint32t[classes],
 				*asub = new MSKint32t[classes];
 	double      *aval = new double[classes];
+
+	// automatic memory releasers
+	std::auto_ptr<MSKint32t> j1(aptrb), j2(aptre), j3(asub);
+	std::auto_ptr<double> j4(aval), j5(blx), j6(bux);
+	std::auto_ptr<MSKboundkeye> j7(bkx);
 
 	for ( int i = 0; i < classes; ++i )
 	{
@@ -66,14 +62,6 @@ int QuadProg( const Qdata &q, double *c, int classes, real_array &outValues )
 		aval[i] = 1.0;
 	}
 
-  //MSKint32t     aptrb[] = {0,   1,   2},
-  //              aptre[] = {1,   2,   3},
-  //              asub[]  = {0,   0,   0};
-  //double        aval[]  = {1.0, 1.0, 1.0};
-
-  //MSKint32t     qsubi[NUMQNZ];
-  //MSKint32t     qsubj[NUMQNZ];
-  //double        qval[NUMQNZ];
 	MSKint32t *qsubi = q.qsubi;
 	MSKint32t *qsubj = q.qsubj;
 	double    *qval = q.qval;
@@ -155,13 +143,7 @@ int QuadProg( const Qdata &q, double *c, int classes, real_array &outValues )
          * matrix in the objective is specified.
          */
 
-//         qsubi[0] = 0;   qsubj[0] = 0;  qval[0] = 2.0;
-//         qsubi[1] = 1;   qsubj[1] = 1;  qval[1] = 0.2;
-//         qsubi[2] = 2;   qsubj[2] = 0;  qval[2] = -1.0;
-//         qsubi[3] = 2;   qsubj[3] = 2;  qval[3] = 2.0;
-
         /* Input the Q for the objective. */
-
         r = MSK_putqobj(task,NUMQNZ,qsubi,qsubj,qval);
       }
 
