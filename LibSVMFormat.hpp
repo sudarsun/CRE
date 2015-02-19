@@ -40,6 +40,7 @@ public:
 	static bool Read( const std::string &inFileName, SparseMatrix &outFeatures, DenseMatrix &outLabels );
 	static bool Read( std::istream &inStream, SparseMatrix &outFeatures, DenseMatrix &outLabels );
 	static bool Write( std::ostream &os, const Matrix &inFeatures, const Matrix &inLabels );
+	static bool Write( std::ostream &os, const Matrix& inFeatures);
 	static bool CheckFormat( const std::string &inFileName );
 	static bool CheckFormat( std::istream &inStream );
 };

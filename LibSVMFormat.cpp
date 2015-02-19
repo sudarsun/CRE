@@ -32,6 +32,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/regex.hpp>
 #include <boost/lexical_cast.hpp>
+#include <iomanip>
 
 bool LibSVMFormat::Read(const std::string& inFileName, SparseMatrix& outFeatures, DenseMatrix& outLabels)
 {
@@ -95,6 +96,27 @@ bool LibSVMFormat::Write( std::ostream &os, const Matrix& inFeatures, const Matr
 			if ( inFeatures.Exists(r,c) )
 			{
 				os << " " << (c+1) << ":" << inFeatures(r,c);
+			}
+		}
+
+		os << std::endl;
+	}
+
+	return true;
+}
+
+bool LibSVMFormat::Write( std::ostream &os, const Matrix& inFeatures)
+{
+	int rows = inFeatures.Rows();
+	int cols = inFeatures.Columns();
+
+	for ( int r = 0; r < rows; ++r )
+	{
+		for ( int c = 0; c < cols; ++c )
+		{
+			if ( inFeatures.Exists(r,c) )
+			{
+				os << (c+1) << ":" << std::setprecision(10) << inFeatures(r,c) << " ";
 			}
 		}
 
