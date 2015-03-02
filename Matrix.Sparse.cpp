@@ -1,48 +1,48 @@
 #include "Matrix.hpp"
+#include "Stopwatch.hpp"
 #include <stdexcept>
 #include <exception>
 #include <cstdio>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/filesystem.hpp>
 
-static const float kZERO = 0;
+static double kZERO = 0;
 
 void
 SparseMatrix::Clear( void )
 {
 	mRows = mCols = 0;
-	mMatrix.resize(0,0);
+	mMatrix.reset();
 }
+
+/// const accessor
+double SparseMatrix::operator()( int r, int c ) const
+{
+	return mMatrix(r,c);
+}
+
+/// non-const accessor/mutator method
+double & SparseMatrix::operator()( int r, int c )
+{
+	throw std::invalid_argument( "double & SparseMatrix::operator()(rows, cols) not implemented" );
+}
+
 
 bool SparseMatrix::Resize( int rows, int cols )
 {
-	mMatrix.resize( rows, cols );
+	mMatrix.reshape( rows, cols );
 	mRows = rows, mCols = cols;
 	return true;
 }
 
-float & SparseMatrix::operator()( int r, int c )
-{
-	return mMatrix(r, c).ref();
-}
-
-const float & SparseMatrix::operator()( int r, int c ) const
-{
-	if ( Exists(r,c) )
-		return (*const_cast<SparseMatrix*>(this))(r, c);
-
-	return kZERO;
-}
-
 void SparseMatrix::operator<<(std::istream& is )
 {
-	typedef std::pair<int,float> tuple_t;
-	typedef std::vector<tuple_t> tuples_t;
-	typedef std::vector<tuples_t> matrix_t;
+	umat posMatrix;
+	Col<double> values;
+	int nnzeros = 0;
 
-	matrix_t matrix;
 	int maxcols = 0;
-
 	int rows = 0, cols = 0;
 	while ( is.peek() != EOF )
 	{
@@ -52,8 +52,6 @@ void SparseMatrix::operator<<(std::istream& is )
 
 		if ( line.empty() )
 			continue;
-
-		tuples_t tuples;
 
 		std::stringstream ss(line);
 		while ( ss.peek() != EOF )
@@ -68,32 +66,36 @@ void SparseMatrix::operator<<(std::istream& is )
 			std::string colid = tuple.substr( 0, pos );
 			int col = boost::lexical_cast<int>(colid);
 			std::string value = tuple.substr( pos+1 );
-			float val = boost::lexical_cast<float>(value);
+			double val = boost::lexical_cast<double>(value);
 
 			maxcols = std::max( maxcols, col );
 
-			tuples.push_back( tuple_t( col, val ) );
+			int size = values.size();
+			if ( size <= nnzeros )
+			{
+				posMatrix.reshape( 2, size + 50000 );
+				values.resize( size + 50000 );
+			}
+
+			posMatrix(0, nnzeros) = rows;
+			posMatrix(1, nnzeros) = col-1;
+			values(nnzeros) = val;
+
+			++nnzeros;
 		}
 
-		matrix.push_back( tuples );
 		++rows;
 	}
 
+	// eliminate the padding values
+	posMatrix.resize( 2, nnzeros );
+	values.resize(nnzeros);
+
 	// compressed matrix cannot be populated directly!
-	boost::numeric::ublas::compressed_matrix<float> temp( rows, maxcols, rows*maxcols );
-	for ( int i = 0; i < rows; ++i )
-	{
-		tuples_t &tuples = matrix[i];
-		for (int j = 0; j < tuples.size(); ++j )
-		{
-			temp(i, tuples[j].first - 1) = tuples[j].second;
-		}
-	}
+	mMatrix = SpMat<double>( posMatrix, values );
 
-	mMatrix = temp;
-
-	mRows = mMatrix.size1();
-	mCols = mMatrix.size2();
+	mRows = mMatrix.n_rows;
+	mCols = mMatrix.n_cols;
 }
 
 void SparseMatrix::operator>>(std::ostream& os ) const
@@ -102,9 +104,9 @@ void SparseMatrix::operator>>(std::ostream& os ) const
 	{
 		for ( int c = 0; c < mCols; ++c )
 		{
-			float *f = (const_cast<boost::numeric::ublas::compressed_matrix<float> &> (mMatrix)).find_element(r, c);
-			if ( f )
-				os << *f << " ";
+			double val = mMatrix(r, c);
+			if ( val )
+				os << val << " ";
 			else
 				os << "- ";
 		}
@@ -115,39 +117,72 @@ void SparseMatrix::operator>>(std::ostream& os ) const
 
 void SparseMatrix::Append( const Matrix &inMatrix )
 {
-	int new_rows = mRows + inMatrix.Rows();
-	int new_cols = std::max(mCols, inMatrix.Columns());
-	boost::numeric::ublas::compressed_matrix<float> temp( new_rows, new_cols, new_rows*new_cols );
+	umat posMatrix;
+	Col<double> values;
+	int nnzeros = 0;
 
 	// copy the current matrix
 	for ( int r = 0; r < mRows; ++r )
 	{
 		for ( int c = 0; c < mCols; ++c )
 		{
-			if ( mMatrix.find_element(r, c) != NULL )
-				temp(r, c) = mMatrix(r,c);
+			double val = mMatrix(r,c);
+			if ( val )
+			{
+				int size = values.size();
+				if ( size <= nnzeros )
+				{
+					posMatrix.reshape( 2, size + 50000 );
+					values.resize( size + 50000 );
+				}
+
+				values(nnzeros) = val;
+				posMatrix( 0, nnzeros ) = r;
+				posMatrix( 1, nnzeros ) = c;
+
+				++nnzeros;
+			}
 		}
 	}
 
 	// copy the incoming matrix
 	int inCols = inMatrix.Columns();
+	int new_rows = mRows + inMatrix.Rows();
 	for ( int r = mRows, r1 = 0; r < new_rows; ++r, ++r1 )
 	{
 		for ( int c = 0; c < inCols; ++c )
 		{
-			if ( inMatrix.Exists(r1, c) )
-				temp(r, c) = inMatrix(r1,c);
+			double val = inMatrix( r1, c );
+			if ( val )
+			{
+				int size = values.size();
+				if ( size <= nnzeros )
+				{
+					posMatrix.reshape( 2, size + 50000 );
+					values.resize( size + 50000 );
+				}
+
+				values(nnzeros) = val;
+				posMatrix( 0, nnzeros ) = r;
+				posMatrix( 1, nnzeros ) = c;
+
+				++nnzeros;
+			}
 		}
 	}
 
-	mMatrix = temp;
-	mRows = mMatrix.size1();
-	mCols = mMatrix.size2();
+	// prune the padded zeros.
+	posMatrix.reshape( 2, nnzeros );
+	values.resize( nnzeros );
+
+	mMatrix = SpMat<double>( posMatrix, values );
+	mRows = mMatrix.n_rows;
+	mCols = mMatrix.n_cols;
 }
 
 bool SparseMatrix::Exists( int row, int col ) const
 {
-	return mMatrix.find_element(row, col) != NULL;
+	return mMatrix(row, col) != 0;
 }
 
 Matrix & SparseMatrix::operator=( const Matrix &inMatrix )
@@ -165,4 +200,21 @@ Matrix & SparseMatrix::operator=( const Matrix &inMatrix )
 	}
 
 	return *this;
+}
+
+bool SparseMatrix::Load( const std::string &inName )
+{
+	if ( ! boost::filesystem::exists( inName.c_str() ) )
+		return false;
+
+	mMatrix.quiet_load(inName.c_str());
+	mRows = mMatrix.n_rows;
+	mCols = mMatrix.n_cols;
+
+	return true;
+}
+
+void SparseMatrix::Save( const std::string &inName ) const
+{
+	mMatrix.quiet_save(inName.c_str());
 }

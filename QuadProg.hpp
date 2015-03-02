@@ -23,7 +23,7 @@ struct Qdata
 		{
 			for ( int j = 0; j <= i; ++j )
 			{
-				float value = QuadObjective(i,j);
+				double value = QuadObjective(i,j);
 				if ( value )
 				{
 					iarray.push_back(i);
@@ -55,7 +55,7 @@ struct Qdata
 		{
 			for ( int j = 0; j <= i; ++j )
 			{
-				float value = QuadObjective(i,j);
+				double value = QuadObjective(i,j);
 				if ( value )
 				{
 					iarray.push_back(i);

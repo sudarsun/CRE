@@ -43,7 +43,7 @@ public:
 class RBFKernel : public Kernel
 {
 public:
-	RBFKernel( float sigma = 1.0 ) : mScale( -1.0/(2*sigma*sigma) )
+	RBFKernel( double sigma = 1.0 ) : mScale( -1.0/(2*sigma*sigma) )
 	{}
 
 	void Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel );
@@ -51,33 +51,8 @@ public:
 
 protected:
 
-	float mScale;	/// the variance parameter -1/(2*sigma^2)
+	double mScale;	/// the variance parameter -1/(2*sigma^2)
 
-};
-
-class RBFKernel_T : public Kernel
-{
-public:
-	RBFKernel_T( float sigma = 1.0, int threadcount = boost::thread::hardware_concurrency() ) : mScale( -1.0/(2*sigma*sigma) ), mThreadCount( threadcount )
-	{}
-
-	void Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel );
-	void Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, const int_array &inCols );
-
-private:
-
-	float mScale;	/// the variance parameter -1/(2*sigma^2)
-	int mThreadCount;
-};
-
-class RBFKernel_Armadillo : public RBFKernel
-{
-public:
-	RBFKernel_Armadillo( float sigma = 1.0 ) : RBFKernel(sigma)
-	{}
-
-	void Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel );
-	void Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, const int_array &inCols );
 };
 
 class RKSKernel : public Kernel

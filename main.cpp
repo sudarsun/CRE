@@ -35,14 +35,14 @@ int main(int argc, char **argv)
 	Data d2;
 	d2.Load(argv[2]);
 
-	const Matrix &f1 = d1.Features();
-	const Matrix &f2 = d2.Features();
+	Matrix &f1 = d1.Features();
+	Matrix &f2 = d2.Features();
 
-	const SparseMatrix &s1 = dynamic_cast<const SparseMatrix &>(f1);
-	const Matrix &l1 = d1.Labels();
+	SparseMatrix &s1 = dynamic_cast<SparseMatrix &>(f1);
+	DenseMatrix &l1 = d1.Labels();
 
-	const SparseMatrix &s2 = dynamic_cast<const SparseMatrix &>(f2);
-	const Matrix &l2 = d2.Labels();
+	SparseMatrix &s2 = dynamic_cast<SparseMatrix &>(f2);
+	DenseMatrix &l2 = d2.Labels();
 
 	Stopwatch timer;
 
@@ -50,13 +50,13 @@ int main(int argc, char **argv)
 	cvdata_t cv;
 	d1.GetCrossValidationDataSet( folds, cv );
 
-	d1.SaveCrossValidationDataSet( cv, "cvtest2" );
+	d1.SaveCrossValidationDataSet( cv, "cvtest1" );*/
 
 	/*
 	for ( int i = 0; i < 13; ++i )
 	{
-		float r = arma::randn();
-		RBFKernel_Armadillo kernel(r);
+		float r = randn();
+		RBFKernel kernel(r);
 		DenseMatrix K;
 
 		Stopwatch tm;
@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 		cols.push_back(i);
 
 		float r = arma::randn();
-		RBFKernel_Armadillo kernel(r);
+		RBFKernel kernel(r);
 		DenseMatrix K;
 
 		Stopwatch tm;
@@ -95,6 +95,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	std::ofstream logfile("logfile", std::ios::app );
 	try {
 
 		Stopwatch sw1;
@@ -106,6 +107,8 @@ int main(int argc, char **argv)
 	Data tedata;
 	std::string te_fname( argv[2] );
 	tedata.Load( te_fname );
+
+	std::cout << "data loaded in: " << sw1.Restart() << " mS" << std::endl;
 
 	int minLabel = trdata.MinLabel();
 	int maxLabel = trdata.MaxLabel();
@@ -120,6 +123,16 @@ int main(int argc, char **argv)
 	const Matrix &tr_labels = trdata.Labels();
 	const Matrix &te_features = tedata.Features();
 
+
+	{
+		logfile << tr_labels.Rows() << "\t";
+		real_array trprop = ClassProportions(tr_labels);
+		logfile << trprop[0] << "\t";
+		logfile << te_features.Rows() << "\t";
+		real_array teprop = ClassProportions(tedata.Labels());
+		logfile << teprop[0] << "\t";
+	}
+
 	ClassRatioEstimator cre;
 	float bw = cre.BandwidthSelect( tr_features );
 
@@ -131,12 +144,13 @@ int main(int argc, char **argv)
 	{
 		std::cout << "loading CV data from: " << argv[4] << std::endl;
 		Data::LoadCrossValidationDataSet( argv[4], cvdata );
+		std::cout << "cross validation dataset loaded in: " << sw1.Restart() << " mS" << std::endl;
 	}
 	else
+	{
 		trdata.GetCrossValidationDataSet(folds, cvdata);
-
-	sw1.Stop();
-	std::cout << "loaded in: " << sw1.Elapsed() << " mS" << std::endl;
+		std::cout << "cross validation dataset constructed: " << sw1.Restart() << " mS" << std::endl;
+	}
 
 	std::vector<real_array> estimated_props(folds);
 	real_array sim_scores(folds);
@@ -157,13 +171,13 @@ int main(int argc, char **argv)
 		std::cout << "\nU-L Kernels.." << std::endl;
 
 		Stopwatch sw;
-		cre.GetKernels( te_features, tr_features, Ker, bw, weights );
+		cre.GetKernels( te_features, tr_features, Ker, bw, weights, "" );
 		float re_time = sw.Elapsed();
 
 		std::cout << "\nL-L Kernels.." << std::endl;
 
 		sw.Restart();
-		cre.GetKernels( tr_features, tr_features, Krr, bw, weights );
+		cre.GetKernels( tr_features, tr_features, Krr, bw, weights, "" );
 		float rr_time = sw.Elapsed();
 
 		int noClasses = maxLabel;
@@ -219,19 +233,29 @@ int main(int argc, char **argv)
 		denom += sim_scores[f];
 	}
 
+	real_array true_prop = ClassProportions(tedata.Labels());
 	if ( conf_denom )
 	{
 		conf_props /= conf_denom;
 		std::cout << "Estimated Final Prop (Confident): \n" << conf_props << std::endl;
-		real_array true_prop = ClassProportions(tedata.Labels());
-		std::cout << "L1-score: " << L1Score(conf_props, true_prop) << std::endl;
+		double cscore = L1Score(conf_props, true_prop);
+		std::cout << "L1-score: " << cscore << std::endl;
+		logfile << conf_props[0] << "\t" << cscore << "\t";
 	}
 
 	props /= denom;
 	std::cout << "Estimated Final Prop:\n" << props << std::endl;
+	double cscore = L1Score(props, true_prop);
+	std::cout << "L1-score: " << cscore << std::endl;
+
+	if ( !conf_denom )
+		logfile << props[0] << "\t" << cscore << "\t";
+
+	logfile << std::endl;
 
 	} catch ( std::exception &e ) {
 		std::cerr << e.what() << std::endl;
+		logfile << "ERROR: " << e.what() << std::endl;
 	}
 
     return 0;

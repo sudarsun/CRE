@@ -8,6 +8,12 @@ typedef std::vector<float> real_array;
 typedef std::vector<double> double_array;
 typedef std::vector<int> int_array;
 
+#ifdef ARMA_64BIT_WORD
+typedef std::vector<unsigned long long> uint_array;
+#else
+typedef std::vector<unsigned> uint_array;
+#endif
+
 typedef std::pair<int, float> weight_t;
 typedef std::vector<weight_t> weights_t;
 

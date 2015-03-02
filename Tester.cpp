@@ -48,26 +48,42 @@
  *
  * sign consistency change should be done! find out why..
  */
-void Tester::TestSparseMatrixPCA(const SparseMatrix& s1, int inPCAdims, const std::string &outFileName, float& outTime)
+
+static const int kPCADimensions = 100;
+
+void Tester::TestSparseMatrixPCA(const SparseMatrix& inMatrix, int inPCAdims, const std::string &outFileName, double& outTime)
 {
-	/*
-	const SpMat<float> &newmat = s1.Data();
+	int dims = inMatrix.Columns();
+	const SpMat<double> &newmat = inMatrix.Data();
 
 	// this expression is like saying my dick is the biggest!!
 	// do the centering by hand!!
-	const SpMat<float> &centered = newmat - spones(newmat) * SpMat<float>(diagmat( Mat<float>( mean(newmat) ) ));
+	const SpMat<double> &centered = newmat - spones(newmat) * SpMat<double>(diagmat( Mat<double>( mean(newmat) ) ));
 
 	DenseMatrix result;
-	Mat<float> &eigvec = result.Data();
-	Col<float> eigval;
+	Mat<double> &eigvec = result.Data();
+	Col<double> eigval;
 
-	eigs_sym(eigval, eigvec, (centered.t()*centered)/(s1.Rows()-1.0), inPCAdims);
+	// extract the eigen vals and eigen vectors from the given input data matrix.
+	int pcadims = std::min( dims, kPCADimensions );
+	eigs_sym(eigval, eigvec, (centered.t()*centered)/(newmat.n_rows-1.0), pcadims );
+
+	double cumsum = 0;
+	int pcadim = 0;
+	for ( ; pcadim < dims; ++pcadim )
+	{
+		double estimated_area = cumsum + (dims-pcadim) * eigval[pcadim];
+		double auc = cumsum / estimated_area;
+		if ( auc >= 0.9 )
+			break;
+	}
 
 	// order the matrix in descending order of eigen values.
-	uvec cols;
-	for ( int i = inPCAdims-1; i >= 0; --i ) cols << i;
-	uvec rows;
-	for ( int i = 0; i < s1.Rows(); ++i ) rows << i;
+	uvec cols( pcadim );
+	for ( int i = pcadim-1; i >= 0; --i ) cols[i-pcadim+1] = i;
+	uvec rows( newmat.n_rows );
+	for ( int i = 0; i < newmat.n_rows; ++i ) rows[i] = i;
+
 	eigvec = eigvec.submat( rows, cols );
 
 	result.mRows = eigvec.n_rows;
@@ -76,10 +92,10 @@ void Tester::TestSparseMatrixPCA(const SparseMatrix& s1, int inPCAdims, const st
 	std::ofstream ofile("output.libsvm");
 	ofile << "EIGEN VALUES:\n" << eigval << std::endl << "SCORES\n";
 	result >> ofile;
-	*/
+
 }
 
-void Tester::TestMultivariateKernelComputation( const Matrix &s1, const Matrix &s2, float sigma, const std::string &outFileName, float &outTime )
+void Tester::TestMultivariateKernelComputation( const Matrix &s1, const Matrix &s2, double sigma, const std::string &outFileName, double &outTime )
 {
 	RBFKernel kernel(sigma);
 	DenseMatrix K;
@@ -93,7 +109,7 @@ void Tester::TestMultivariateKernelComputation( const Matrix &s1, const Matrix &
 }
 
 
-void Tester::TestUnivariateKernelComputation( const Matrix &s1, const Matrix &s2, float sigma, int dimId, const std::string &outFileName, float &outTime )
+void Tester::TestUnivariateKernelComputation( const Matrix &s1, const Matrix &s2, double sigma, int dimId, const std::string &outFileName, double &outTime )
 {
 	RBFKernel kernel(sigma);
 	DenseMatrix K;

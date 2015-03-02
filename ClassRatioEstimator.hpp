@@ -48,7 +48,7 @@ public:
 	float 	BandwidthSelect( const Matrix &inMatrix ) const;
 
 	void	GetKernels( const Matrix &inA, const Matrix &inB, dense_matrix_array &outKernels, float inBandwidth, bool inMulti, KernelImplType type );
-	void	GetKernels( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, float inBandwidth, const real_array &inWts );
+	void	GetKernels( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, float inBandwidth, const real_array &inWts, const std::string &inPrefix );
 
 	bool 	MMD( const DenseMatrix &inY, int inClasses, const DenseMatrix &inKrr, const DenseMatrix &inKre, real_array &outValues );
 

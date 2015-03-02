@@ -33,7 +33,9 @@
 #include "Utils.hpp"
 #include <vector>
 #include <cfloat>
+#include <boost/filesystem/operations.hpp>
 #include <armadillo>
+#include "LibSVMFormat.hpp"
 
 static const float kCorrelationThreshold = 0.90;
 
@@ -67,6 +69,7 @@ float ClassRatioEstimator::BandwidthSelect(const Matrix& inMatrix) const
 	return mean_std_x * sigma;
 }
 
+int PP = -1;
 void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, real_array& outWeights)
 {
 	const Matrix &train = inTrain.Features();
@@ -96,7 +99,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 	outWeights.resize( dims + 13 );
 
 	DenseMatrix Krr, Ker;
-	RBFKernel_Armadillo kernel( bandwidth );
+	RBFKernel kernel( bandwidth );
 	int k = 0;
 	for ( ; k < dims; ++k )
 	{
@@ -113,6 +116,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 		kernel.Compute(eval, train, Ker, cols );
 		float ker_time = sw.Elapsed();
 
+		PP = k;
 		sw.Restart();
 		real_array props_estimated(noClasses);
 		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, Krr, Ker, props_estimated ) )
@@ -155,7 +159,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 	for ( int i = -6; i <= 6; ++i, ++k )
 	{
 		float bw = pow(2,i) * bandwidth * dims * dims;
-		RBFKernel_Armadillo kernel( bw );
+		RBFKernel kernel( bw );
 
 		// compute train-train and eval-train kernels.
 		Stopwatch sw;
@@ -166,6 +170,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 		kernel.Compute(eval, train, Ker );
 		float ker_time = sw.Elapsed();
 
+		PP = k;
 		sw.Restart();
 		real_array props_estimated;
 		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, Krr, Ker, props_estimated ) )
@@ -253,7 +258,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 }
 
 void
-ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, float inBandwidth, const real_array &inWts )
+ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, float inBandwidth, const real_array &inWts, const std::string &inPrefix )
 {
 	int dimensions = inA.Columns();
 
@@ -272,7 +277,7 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 	outKernel.Zeroize();
 
 	int univariateGaussians = dimensions;
-	RBFKernel_Armadillo kernel( inBandwidth );
+	RBFKernel kernel( inBandwidth );
 	for ( int k = 0; k < dimensions; ++k )
 	{
 		// skip kernels that are not required.
@@ -287,8 +292,24 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 		Stopwatch sw;
 
 		DenseMatrix K;
-		// kernel computed on a per dimension basis.
-		kernel.Compute( inA, inB, K, cols );
+
+		if ( !inPrefix.length() )
+			kernel.Compute( inA, inB, K, cols );
+		else
+		{
+			char filename[100];
+			sprintf( filename, "%s-%d.mat", inPrefix.c_str(), k );
+			if ( !K.Load(filename) )
+			{
+				Stopwatch tt;
+				// kernel computed on a per dimension basis.
+				kernel.Compute( inA, inB, K, cols );
+				std::cout << "Compute:" << tt.Restart() << " mS;";
+				K.Save(filename);
+				std::cout << "Save:" << tt.Restart() << " mS; ";
+			}
+		}
+
 		K *= inWts[k];
 		totalWt += inWts[k];
 		outKernel += K;
@@ -303,13 +324,29 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 			continue;
 
 		float bw = bandwidths[ k-univariateGaussians ];
-		RBFKernel_Armadillo kernel(bw);
+		RBFKernel kernel(bw);
 
 		std::cout << "BW[" << k << "]: ";
 		Stopwatch sw;
 
 		DenseMatrix K;
-		kernel.Compute( inA, inB, K );
+
+		if ( !inPrefix.length() )
+			kernel.Compute( inA, inB, K );
+		else
+		{
+			char filename[100];
+			sprintf( filename, "%s-%d.mat", inPrefix.c_str(), k );
+			if ( !K.Load(filename) )
+			{
+				Stopwatch tt;
+				kernel.Compute( inA, inB, K );
+				std::cout << "Compute:" << tt.Restart() << " mS;";
+				K.Save(filename);
+				std::cout << "Save:" << tt.Restart() << " mS; ";
+			}
+		}
+		
 		K *= inWts[k];
 		totalWt += inWts[k];
 		outKernel += K;
@@ -337,13 +374,7 @@ void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense
 		univariateGaussians = 0;
 	else
 	{
-		std::auto_ptr<Kernel> kernel;
-		if ( inType == eNAIVE_THREADED )
-			kernel.reset( new RBFKernel_T( inBandwidth) );
-		else if ( inType == eARMADILLO )
-			kernel.reset( new RBFKernel_Armadillo( inBandwidth ) );
-		else
-			kernel.reset( new RBFKernel( inBandwidth ) );
+		std::auto_ptr<Kernel> kernel( new RBFKernel( inBandwidth ) );
 
 		outKernels.resize( dimensions );
 		for ( int k = 0; k < dimensions; ++k )
@@ -366,13 +397,7 @@ void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense
 	for ( int k = univariateGaussians; k < nofKernels; ++k )
 	{
 		float bw = bandwidths[ k-univariateGaussians ];
-		std::auto_ptr<Kernel> kernel;
-		if ( inType == eNAIVE_THREADED )
-			kernel.reset( new RBFKernel_T( inBandwidth) );
-		else if ( inType == eARMADILLO )
-			kernel.reset( new RBFKernel_Armadillo( inBandwidth ) );
-		else
-			kernel.reset( new RBFKernel( inBandwidth ) );
+		std::auto_ptr<Kernel> kernel( new RBFKernel( inBandwidth ) );
 
 		std::cerr << "BW[" << k << "]: ";
 		Stopwatch sw;
@@ -437,6 +462,7 @@ bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const Dens
 			int_array idx2 = Indices( inY, j+1 );
 			int size2 = idx2.size();
 			DenseMatrix ktemp = inKrr.Select(idx1, idx2);
+
 			/*
 			if ( i == j )
 			{
@@ -474,7 +500,7 @@ bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const Dens
 	H += H.Transpose();
 	H *= 0.5;
 
-	Qdata q(H);
+	Qdata q(H.Data());
 	int result = QuadProg( q, &f[0], inClasses, outValues );
 
 	if ( result )

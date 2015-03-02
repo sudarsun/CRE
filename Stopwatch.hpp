@@ -47,13 +47,17 @@ public:
 		mStarted = false;
 	}
 
-	void	Restart()
+	double	Restart()
 	{
+		double elapsed = Elapsed();
+
 		mStarted = true;
 		mStart = boost::chrono::steady_clock::now();
+
+		return elapsed;
 	}
 
-	float	Elapsed()
+	double	Elapsed()
 	{
 		boost::chrono::steady_clock::duration diff;
 		if ( mStarted )

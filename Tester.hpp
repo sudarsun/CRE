@@ -36,14 +36,14 @@ class Tester
 {
 public:
 
-	static void TestMultivariateKernelComputation( const Matrix &s1, const Matrix &s2, float sigma, const std::string &outFileName, float &outTime );
+	static void TestMultivariateKernelComputation( const Matrix &s1, const Matrix &s2, double sigma, const std::string &outFileName, double &outTime );
 
-	static void TestUnivariateKernelComputation( const Matrix &s1, const Matrix &s2, float sigma, int dimId, const std::string &outFileName, float &outTime );
+	static void TestUnivariateKernelComputation( const Matrix &s1, const Matrix &s2, double sigma, int dimId, const std::string &outFileName, double &outTime );
 
-	static void TestSparseMatrixPCA( const SparseMatrix &inMat, int inPCAdims, const std::string &outFileName, float &outTime );
+	static void TestSparseMatrixPCA( const SparseMatrix &inMat, int inPCAdims, const std::string &outFileName, double &outTime );
 
 	static void TestCrossValidationLoadSave( const cvdata_t &inCV, const std::string &inName );
-	
+
 };
 
 #endif // TESTER_H

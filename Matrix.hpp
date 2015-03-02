@@ -30,8 +30,6 @@
 
 #include <iostream>
 #include <vector>
-#include <boost/numeric/ublas/matrix.hpp>
-#include <boost/numeric/ublas/matrix_sparse.hpp>
 #include <armadillo>
 #include "Typedefs.hpp"
 
@@ -58,10 +56,10 @@ public:
 	virtual bool Resize( int rows, int cols ) = 0;
 
 	/// const accessor method
-	virtual const float & operator()( int r, int c ) const = 0;
+	virtual double operator()( int r, int c ) const = 0;
 
 	/// non-const accessor/mutator method
-	virtual float & operator()( int r, int c ) = 0;
+	virtual double & operator()( int r, int c ) = 0;
 
 	/// read a text stream to load the matrix.
 	virtual void operator << ( std::istream & ) = 0;
@@ -92,44 +90,14 @@ public:
 		return mCols;
 	}
 
+	virtual bool	Load( const std::string &inName ) = 0;
+	virtual void	Save( const std::string &inName ) const = 0;
+
 	int mRows, mCols;				///< the dimension of the matrix.
 
 };
 
-class SymmetricMatrix : public Matrix
-{
-
-public:
-
-	/// equals comparator
-	bool operator==(const SymmetricMatrix& other);
-
-	/// resize the matrix to (rows x cols), clears the matrix.
-	bool Resize( int rows, int cols );
-
-	/// const accessor
-	const float & operator()( int r, int c ) const;
-
-	/// non-const accessor/mutator method
-	float & operator()( int r, int c );
-
-	/// read a text stream to load the matrix.
-	void operator << ( std::istream & );
-
-	/// write the matrix to an output stream
-	void operator >> ( std::ostream & );
-
-	void Append( const Matrix & );
-
-	Matrix & operator=( const Matrix & );
-
-	void Clear( void );
-
-private:
-
-	std::vector<float> 	mData;		///< the underlying symmetric floating point matrix container.
-
-};
+using namespace arma;	/// armadillo's namespace.
 
 class DenseMatrix : public Matrix
 {
@@ -139,33 +107,53 @@ public:
 	DenseMatrix(void )
 	{}
 
+	DenseMatrix( const Row<double> &row ) : mMatrix(row)
+	{}
+
+	DenseMatrix( const Col<double> &col ) : mMatrix(col)
+	{}
+
 	/// constructor for pre-allocation of space.
-	DenseMatrix( int rows, int cols, float value = 0 );
+	DenseMatrix( int rows, int cols, double value = 0 );
 
 	virtual ~DenseMatrix()
 	{
 	}
 
 	/// equals comparator
-	bool operator==(const DenseMatrix& other);
+	bool operator==(const DenseMatrix & other);
 
 	DenseMatrix & operator+=( const DenseMatrix & );
-	DenseMatrix & operator*=( const DenseMatrix & );
-	DenseMatrix & operator*=( float scalar );
-	DenseMatrix & operator+=( float scalar );
-	DenseMatrix & operator-=( float scalar );
+	DenseMatrix & operator%=( const DenseMatrix & );
+	DenseMatrix & operator*=( double scalar );
+	DenseMatrix & operator+=( double scalar );
+	DenseMatrix & operator-=( double scalar );
 
 	/// clear the allocation.
-	void Clear( void );
+	void Clear( void )
+	{
+		mRows = mCols = 0;
+		mMatrix.resize(0,0);
+	}
 
 	/// resize the matrix to (rows x cols)
-	bool Resize( int rows, int cols );
+	bool Resize( int rows, int cols )
+	{
+		mRows = rows, mCols = cols;
+		mMatrix.resize(rows, cols);
+	}
 
 	/// const accessor
-	const float & operator()( int r, int c ) const;
+	double operator()( int r, int c ) const
+	{
+		return mMatrix(r,c);
+	}
 
 	/// non-const accessor/mutator method
-	float & operator()( int r, int c );
+	double & operator()( int r, int c )
+	{
+		return mMatrix(r,c);
+	}
 
 	/// read a text stream to load the matrix.
 	void operator << ( std::istream & );
@@ -183,11 +171,19 @@ public:
 
 	DenseMatrix Transpose( void ) const;
 
-	void Perturb( float scale );
+	Mat<double> & Data( void )
+	{
+		return mMatrix;
+	}
+
+	const Mat<double> & Data( void ) const
+	{
+		return mMatrix;
+	}
 
 	void Zeroize( void )
 	{
-		mMatrix.clear();
+		mMatrix.zeros();
 	}
 
 	enum Order_t
@@ -202,111 +198,14 @@ public:
 	DenseMatrix Min( Order_t inOrder = eColWise ) const;
 	DenseMatrix Max( Order_t inOrder = eColWise ) const;
 
+	bool	Load( const std::string &inName );
+	void	Save( const std::string &inName ) const;
+
 private:
 
-	boost::numeric::ublas::matrix<float> mMatrix;
+	Mat<double> mMatrix;		///< Armadillo's dense matrix.
 
 };
-/*
-class DenseMatrixArmadillo : public Matrix
-{
-
-public:
-
-	DenseMatrixArmadillo(void )
-	{}
-
-	DenseMatrixArmadillo( const arma::Row<float> &row ) : mMatrix(row)
-	{}
-
-	DenseMatrixArmadillo( const arma::Col<float> &col ) : mMatrix(col)
-	{}
-
-	/// constructor for pre-allocation of space.
-	DenseMatrixArmadillo( int rows, int cols, float value = 0 );
-
-	~DenseMatrixArmadillo()
-	{
-	}
-
-	/// equals comparator
-	bool operator==(const DenseMatrixArmadillo& other);
-
-	DenseMatrix & operator+=( const DenseMatrix & );
-	DenseMatrix & operator*=( const DenseMatrix & );
-	DenseMatrix & operator*=( float scalar );
-	DenseMatrix & operator+=( float scalar );
-	DenseMatrix & operator-=( float scalar );
-
-	/// clear the allocation.
-	void Clear( void )
-	{
-		mRows = mCols = 0;
-		mMatrix.resize(0,0);
-	}
-
-	/// resize the matrix to (rows x cols)
-	bool Resize( int rows, int cols )
-	{
-		mRows = rows, mCols = cols;
-		mMatrix.resize(rows, cols);
-	}
-
-	/// const accessor
-	const float & operator()( int r, int c ) const
-	{
-		return mMatrix(r,c);
-	}
-
-	/// non-const accessor/mutator method
-	float & operator()( int r, int c )
-	{
-		return mMatrix(r,c);
-	}
-
-	/// read a text stream to load the matrix.
-	void operator << ( std::istream & );
-
-	/// write the matrix to an output stream
-	void operator >> ( std::ostream & ) const;
-
-	void Append( const Matrix & );
-
-	Matrix & operator= ( const Matrix & );
-
-	DenseMatrix & operator=( const DenseMatrixArmadillo & );
-
-	DenseMatrix Select( const int_array &idx1, const int_array &idx2 ) const;
-
-	DenseMatrix Transpose( void ) const;
-
-	arma::Mat<float> & Data( void )
-	{
-		return mMatrix;
-	}
-
-	const arma::Mat<float> & Data( void ) const
-	{
-		return mMatrix;
-	}
-
-	enum Order_t
-	{
-		eRowWise,
-		eColWise,
-		eWholesome
-	};
-
-	DenseMatrix Mean( Order_t inOrder = eColWise ) const;
-	DenseMatrix Sum( Order_t inOrder = eColWise ) const;
-	DenseMatrix Min( Order_t inOrder = eColWise ) const;
-	DenseMatrix Max( Order_t inOrder = eColWise ) const;
-
-private:
-
-	arma::Mat<float> mMatrix;
-
-};*/
 
 class IdentityMatrix : public DenseMatrix
 {
@@ -339,10 +238,10 @@ public:
 	bool Resize( int rows, int cols );
 
 	/// const accessor
-	const float& operator()( int r, int c ) const;
+	double operator()( int r, int c ) const;
 
 	/// non-const accessor/mutator method
-	float & operator()( int r, int c );
+	double & operator()( int r, int c );
 
 	/// read a text stream to load the matrix.
 	void operator << ( std::istream & );
@@ -357,9 +256,22 @@ public:
 
 	Matrix & operator= ( const Matrix & );
 
+	SpMat<double> & Data( void )
+	{
+		return mMatrix;
+	}
+
+	const SpMat<double> & Data( void ) const
+	{
+		return mMatrix;
+	}
+
+	bool	Load( const std::string &inName );
+	void	Save( const std::string &inName ) const;
+
 private:
 
-	boost::numeric::ublas::compressed_matrix<float> mMatrix;
+	SpMat<double> mMatrix;		///< Armadillo's sparse matrix.
 
 };
 

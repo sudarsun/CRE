@@ -1,6 +1,5 @@
 #include "QuadProg.hpp"
 #include <cstdio>
-#include <memory>
 
 /*
    Copyright: Copyright (c) MOSEK ApS, Denmark. All rights reserved.
@@ -12,7 +11,7 @@
  */
 
 #include <stdio.h>
-
+#include <memory>
 #include "mosek.h" /* Include the MOSEK definition file. */
 
 #define NUMCON 1   /* Number of constraints.             */
@@ -36,7 +35,7 @@ int QuadProg( const Qdata &q, double *c, int classes, real_array &outValues )
   double        blc[] = {1.0};
   double        buc[] = {+MSK_INFINITY};
 
-	MSKboundkeye *bkx = new MSKboundkeye[classes];
+  MSKboundkeye *bkx = new MSKboundkeye[classes];
 	double *blx = new double[classes],
 	       *bux = new double[classes];
 

@@ -27,6 +27,7 @@
 
 #include "LibSVMFormat.hpp"
 #include "Matrix.hpp"
+#include "Stopwatch.hpp"
 #include <stdexcept>
 #include <fstream>
 #include <boost/algorithm/string.hpp>
