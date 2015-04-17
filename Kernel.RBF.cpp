@@ -130,67 +130,6 @@ RBFKernel::Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel
 	int c1 = inA.Columns(), c2 = inB.Columns();
 	if ( c1 != c2 )
 		throw std::runtime_error("column size disagreement");
-/*
-	uvec cols;
-	for ( int i = 0; i < inCols.size(); ++i )
-		cols << inCols[i];
-
-	DenseMatrix A;
-	int n1 = inA.Rows();
-
-	const SparseMatrix *smatrixA = dynamic_cast<const SparseMatrix *>(&inA);
-	if ( smatrixA )
-	{
-		const SpMat<double> &smatA = smatrixA->Data();
-		A.Data() = smatA.submat( span(0, n1-1), cols );
-	}
-	else
-	{
-		const DenseMatrix *dmatrixA = dynamic_cast<const DenseMatrix *>(&inA);
-		if ( dmatrixA )
-		{
-			const Mat<double> &dmatA = dmatrixA->Data();
-			A.Data() = dmatA.submat( span(0, n1-1), cols );
-		}
-		else
-		{
-			throw std::invalid_argument("RBFKernel::Compute() expects a Sparse or Dense matrix argument");
-		}
-	}
-
-	A.mRows = n1;
-	A.mCols = inCols.size();
-
-	DenseMatrix B;
-	int n2 = inB.Rows();
-
-	const SparseMatrix *smatrixB = dynamic_cast<const SparseMatrix *>(&inB);
-	if ( smatrixB )
-	{
-		const SpMat<double> &smatB = smatrixB->Data();
-		B.Data() = smatB.submat( span(0, n2-1), inCols );
-	}
-	else
-	{
-		const DenseMatrix *dmatrixB = dynamic_cast<const DenseMatrix *>(&inB);
-		if ( dmatrixB )
-		{
-			const Mat<double> &dmatB = dmatrixB->Data();
-			B.Data() = dmatB.submat( span(0, n2-1), inCols );
-		}
-		else
-		{
-			throw std::invalid_argument("RBFKernel::Compute() expects a Sparse or Dense matrix argument");
-		}
-	}
-
-	B.mRows = n2;
-	B.mCols = inCols.size();
-
-	Compute( A, B, outKernel );
-
-	*/
-
 
 	int n1 = inA.Rows(), n2 = inB.Rows();
 	int cx = inCols.size();
