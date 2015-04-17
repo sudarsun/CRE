@@ -70,7 +70,7 @@ float ClassRatioEstimator::BandwidthSelect(const Matrix& inMatrix) const
 }
 
 int PP = -1;
-void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, real_array& outWeights)
+void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, real_array& outWeights, ScorerType inType )
 {
 	const Matrix &train = inTrain.Features();
 	const Matrix &eval = inEval.Features();
@@ -124,7 +124,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 
 		float mmd_time = sw.Elapsed();
 
-		float sim_score_now = L1Score( yte_props, props_estimated );
+		float sim_score_now = Score(yte_props, props_estimated, inType ); // L1Score( yte_props, props_estimated );
 		if ( sim_score_now > sim_score )
 		{
 			best_kernel = k;
@@ -178,7 +178,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 
 		float mmd_time = sw.Elapsed();
 
-		float sim_score_now = L1Score( yte_props, props_estimated );
+		float sim_score_now = Score( yte_props, props_estimated, inType ); // L1Score( yte_props, props_estimated );
 		if ( sim_score_now > sim_score )
 		{
 			best_kernel = k;
@@ -213,6 +213,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 	std::cout << "Best Theta:\n" << best_props << std::endl;
 	std::cout << "L1 norm: " << LpNorm( best_props, yte_props, 1 ) << std::endl;
 	std::cout << "L1 simi: " << L1Score( best_props, yte_props ) << std::endl;
+	std::cout << "ModL1 simi: " << ModifiedBinaryL1Score( best_props, yte_props ) << std::endl;
 	std::cout << "Cosine : " << Cosine( best_props, yte_props ) << std::endl;
 	std::cout << "Correlation: " << Correlation( best_props, yte_props ) << "\n" << std::endl;
 
@@ -227,10 +228,11 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 
 		std::cout << "Super L1 norm: " << LpNorm( props_estimated, yte_props, 1 ) << std::endl;
 		std::cout << "Super L1 simi: " << L1Score( props_estimated, yte_props ) << std::endl;
+		std::cout << "Super ModL1 simi: " << ModifiedBinaryL1Score( props_estimated, yte_props ) << std::endl;
 		std::cout << "Super Cosine: " << Cosine( props_estimated, yte_props ) << std::endl;
 		std::cout << "Super Correlation: " << Correlation( props_estimated, yte_props ) << "\n" << std::endl;
 
-		super_sim_score = L1Score( props_estimated, yte_props );
+		super_sim_score = Score( props_estimated, yte_props, inType );  // L1Score( props_estimated, yte_props );
 
 		// super kernel didn't contribute, so use the best kernel with binary weights.
 		// if super kernel is 1% less than single kernel estimate, we shall override,
@@ -346,7 +348,7 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 				std::cout << "Save:" << tt.Restart() << " mS; ";
 			}
 		}
-		
+
 		K *= inWts[k];
 		totalWt += inWts[k];
 		outKernel += K;
@@ -356,7 +358,7 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 
 	outKernel *= (1.0/totalWt);
 }
-
+/*
 void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense_matrix_array &outKernels, float inBandwidth, bool inMulti, KernelImplType inType )
 {
 	int dimensions = inA.Columns();
@@ -404,7 +406,7 @@ void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense
 		kernel->Compute( inA, inB, outKernels[k] );
 		std::cerr << sw.Elapsed() << " mS" << std::endl;
 	}
-}
+}*/
 
 /**
  * function [theta, obj] = MMD(Y, c, Krr, Ker)

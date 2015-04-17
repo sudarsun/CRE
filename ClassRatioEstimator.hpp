@@ -31,6 +31,7 @@
 #include "Matrix.hpp"
 #include "Typedefs.hpp"
 #include "Data.hpp"
+#include "Utils.hpp"
 #include <vector>
 
 enum KernelImplType
@@ -39,6 +40,27 @@ enum KernelImplType
 	eNAIVE_THREADED,
 	eARMADILLO
 };
+
+enum ScorerType
+{
+	eL1Scorer,
+	eBinaryL1Scorer,
+	eModifiedBinaryL1Scorer
+};
+
+static float	Score( const real_array &ref, const real_array &test, ScorerType type )
+{
+	switch(type)
+	{
+		case eBinaryL1Scorer:
+			return BinaryL1Score(ref, test);
+		case eModifiedBinaryL1Scorer:
+			return ModifiedBinaryL1Score(ref, test);
+		case eL1Scorer:
+		default:
+			return L1Score(ref, test);
+	}
+}
 
 class ClassRatioEstimator
 {
@@ -52,7 +74,7 @@ public:
 
 	bool 	MMD( const DenseMatrix &inY, int inClasses, const DenseMatrix &inKrr, const DenseMatrix &inKre, real_array &outValues );
 
-	void	BestKernel( const Data &inTrain, const Data &inEval, real_array &outWeights );
+	void	BestKernel( const Data &inTrain, const Data &inEval, real_array &outWeights, ScorerType inType );
 
 
 };
