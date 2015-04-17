@@ -24,73 +24,13 @@
  */
 
 // usage: <tr-data> <val-data>
+// --train <traindata> --predict <test|eval data> --cv <3|5> --cutoff .95 --correlation-threshold 0.9 --use-only-mvkernels --use-only-uvkernels --mvkernel-range -6:6 --log <logfile> --verbosity 1 --load-cv-dataset <cvfile-prefix> --save-cv-dataset <cvfile-prefix>
+
 int main(int argc, char **argv)
 {
-	/*
-	std::ifstream file( argv[1] );
-
-	Data d1;
-	d1.Load(argv[1]);
-
-	Data d2;
-	d2.Load(argv[2]);
-
-	Matrix &f1 = d1.Features();
-	Matrix &f2 = d2.Features();
-
-	SparseMatrix &s1 = dynamic_cast<SparseMatrix &>(f1);
-	DenseMatrix &l1 = d1.Labels();
-
-	SparseMatrix &s2 = dynamic_cast<SparseMatrix &>(f2);
-	DenseMatrix &l2 = d2.Labels();
-
-	Stopwatch timer;
-
-	int folds = 3;
-	cvdata_t cv;
-	d1.GetCrossValidationDataSet( folds, cv );
-
-	d1.SaveCrossValidationDataSet( cv, "cvtest1" );*/
-
-	/*
-	for ( int i = 0; i < 13; ++i )
-	{
-		float r = randn();
-		RBFKernel kernel(r);
-		DenseMatrix K;
-
-		Stopwatch tm;
-		kernel.Compute( s1, s2, K );
-		std::cerr << tm.Elapsed() << " ";
-	}
-
-	std::cerr << "\nMulti: " << timer.Elapsed() << " mS" << std::endl;
-	timer.Restart();
-
-	int fcount = f1.Columns();
-	for ( int i = 0; i < fcount; ++i )
-	{
-		int_array cols;
-		cols.push_back(i);
-
-		float r = arma::randn();
-		RBFKernel kernel(r);
-		DenseMatrix K;
-
-		Stopwatch tm;
-		kernel.Compute( s1, s2, K, cols );
-		std::cerr << tm.Elapsed() << " ";
-	}
-
-	float tt = timer.Elapsed();
-
-	std::cerr << "Kernel Time: " << tt << " mS" << std::endl;
-//	K >> std::cout;
-
-	return -1;
-*/
 	if ( argc < 4 )
 	{
+		std::cerr << "Class Ratio Estimator v2.0 April 2015\n";
 		std::cerr << argv[0] << " <tr-data> <val-data> <cvfolds> [cvdata]\n" << std::endl;
 		return -1;
 	}
@@ -150,6 +90,10 @@ int main(int argc, char **argv)
 	{
 		trdata.GetCrossValidationDataSet(folds, cvdata);
 		std::cout << "cross validation dataset constructed: " << sw1.Restart() << " mS" << std::endl;
+
+		std::cout << "saving CV data onto " << argv[1] << ".cv3 ...";
+		Data::SaveCrossValidationDataSet( cvdata, std::string(argv[1])+".cv3" );
+		std::cout << "saved in " << sw1.Restart() << " mS" << std::endl;
 	}
 
 	std::vector<real_array> estimated_props(folds);
@@ -161,7 +105,7 @@ int main(int argc, char **argv)
 		const Data &eval = cvdata[f].train;
 
 		real_array weights;
-		cre.BestKernel(train, eval, weights);
+		cre.BestKernel(train, eval, weights, eModifiedBinaryL1Scorer);
 
 		std::cout << "\nEval True Theta:\n" << ClassProportions(eval.Labels()) << std::endl;
 		std::cout << "\nTrain True Theta:\n" << ClassProportions(train.Labels()) << std::endl;
@@ -197,11 +141,12 @@ int main(int argc, char **argv)
 			const real_array &prop = estimated_props[f];
 			std::cout << "Estimated Prop:\n" << prop << std::endl;
 			std::cout << "L1 Norm: " << LpNorm(true_prop, prop, 1) << std::endl;
-			std::cout << "L1 Norm Corr: " << L1Score(true_prop, prop) << std::endl;
+			std::cout << "L1 Score: " << L1Score(true_prop, prop) << std::endl;
+			std::cout << "ModL1 Score: " << ModifiedBinaryL1Score(true_prop, prop) << std::endl;
 			std::cout << "Cosine Sim : " << Cosine(true_prop, prop) << std::endl;
 			std::cout << "Correlation: " << Correlation(true_prop, prop) << "\n" << std::endl;
 
-			sim_scores[f] = L1Score(true_prop, prop);
+			sim_scores[f] = ModifiedBinaryL1Score(true_prop, prop); // L1Score(true_prop, prop);
 		}
 		else
 		{
@@ -238,14 +183,14 @@ int main(int argc, char **argv)
 	{
 		conf_props /= conf_denom;
 		std::cout << "Estimated Final Prop (Confident): \n" << conf_props << std::endl;
-		double cscore = L1Score(conf_props, true_prop);
+		double cscore = ModifiedBinaryL1Score(conf_props, true_prop); // L1Score(conf_props, true_prop);
 		std::cout << "L1-score: " << cscore << std::endl;
 		logfile << conf_props[0] << "\t" << cscore << "\t";
 	}
 
 	props /= denom;
 	std::cout << "Estimated Final Prop:\n" << props << std::endl;
-	double cscore = L1Score(props, true_prop);
+	double cscore = ModifiedBinaryL1Score(props, true_prop); // L1Score(props, true_prop);
 	std::cout << "L1-score: " << cscore << std::endl;
 
 	if ( !conf_denom )
