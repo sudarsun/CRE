@@ -43,6 +43,8 @@ Data& Data::operator=(const Data& inData )
 		mFeatures = new DenseMatrix();
 
 	*mFeatures = inData.Features();
+
+	return *this;
 }
 
 bool Data::Load(const std::string& inFeatureMatrix, const std::string &inLabelColumnMatrix  )
@@ -89,6 +91,7 @@ bool Data::Load(const std::string& inFeatureMatrix, const std::string &inLabelCo
 	if ( mLabels.Rows() and mLabels.Min(DenseMatrix::eWholesome)(0,0) == 0 )
 		mLabels += 1;
 
+	return true;
 }
 
 bool Data::Load( std::istream& inMatrix, std::istream& inLabelColumnMatrix)
@@ -149,6 +152,8 @@ bool Data::Save(const std::string& outFile) const
 		mLabels >> labels;
 		labels.close();
 	}
+
+	return true;
 }
 
 void Data::Load(const std::string& inName)
