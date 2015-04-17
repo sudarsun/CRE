@@ -152,7 +152,7 @@ bool LibSVMFormat::CheckFormat(std::istream& inStream)
 			std::string token;
 			ss >> token;
 
-			int p = 0;
+			size_t p = 0;
 			if ( (p=token.find(':')) == std::string::npos )
 				return false;
 
