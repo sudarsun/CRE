@@ -31,6 +31,7 @@
 #include "Typedefs.hpp"
 #include "Matrix.hpp"
 #include <iostream>
+#include <vector>
 
 float StandardDeviation( const real_array &inArray );
 
@@ -49,6 +50,8 @@ real_array ClassProportions( const Matrix &inLabels );
 float 	LpNorm( const real_array &ref, const real_array &test, int p = 2 );
 
 float	L1Score( const real_array &ref, const real_array &test );
+float	BinaryL1Score( const real_array &ref, const real_array &test );
+float 	ModifiedBinaryL1Score( const real_array &ref, const real_array &test );
 
 float 	Correlation( const real_array &ref, const real_array &test );
 
@@ -61,5 +64,20 @@ real_array & operator += ( real_array &ioArray, const real_array &inArray );
 
 real_array & operator /= ( real_array &ioArray, float scale );
 real_array & operator *= ( real_array &ioArray, float scale );
+
+class Scorer
+{
+
+public:
+
+	void	Reset(void);
+	void	Add( const real_array &inScore );
+
+	real_array	Finale( void );
+
+private:
+
+	std::vector< real_array > mScores;
+};
 
 #endif // __cre_utils_hpp__

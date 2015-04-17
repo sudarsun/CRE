@@ -1,6 +1,71 @@
 #include "Utils.hpp"
 #include <cmath>
 
+void Scorer::Reset(void )
+{
+	mScores.clear();
+}
+
+void Scorer::Add(const real_array& inScore)
+{
+	mScores.push_back( inScore );
+}
+
+real_array Scorer::Finale(void )
+{
+	int n = mScores.size();
+
+	// if blank, no work to do.
+	if ( n == 0 )
+		return real_array();
+
+	// if there is only one item, just return that.
+	if ( n == 1 )
+		return mScores[0];
+
+	// if there are just two items, return the mean of the items.
+	if ( n == 2 )
+	{
+		real_array acc = mScores[0];
+		acc += mScores[1];
+		acc /= 2.0;
+		return acc;
+	}
+
+	int_array corepts;
+	int_array nbd(n);
+	float eps = 0.9;
+	int minpts = 1+n/2;
+
+	for ( int i = 0; i < n; ++i )
+	{
+		for ( int j = 0; j < n; ++j )
+		{
+			if ( i==j )
+				continue;
+
+			float distance = LpNorm( mScores[i], mScores[j], 1 );
+			if ( distance < eps )
+				continue;
+
+			if ( ++nbd[i] >= minpts )
+				corepts.push_back(i);
+		}
+	}
+
+
+	// perform clustering.
+	Mat<double> dmat( n, n );
+	for ( int i = 0; i < n-1; ++i )
+		for ( int j = i+1; j < n; ++j )
+			dmat(i,j) = LpNorm( mScores[i], mScores[j], 1 );
+
+	Col<double> colsum = sum( dmat, 1 );
+
+	return real_array();
+}
+
+
 float StandardDeviation( const real_array &inArray )
 {
 	int N = inArray.size();
@@ -252,6 +317,34 @@ float L1Score(const real_array& ref, const real_array& test)
 	return 1.0 - Lpnorm;
 }
 
+float BinaryL1Score(const real_array& ref, const real_array& test)
+{
+	// it is analytically found that L1(ref,test) = |ref0-test0| = |ref1-test1|
+	return 1 - fabs( ref[0] - test[0] );
+}
+
+float ModifiedBinaryL1Score( const real_array &ref, const real_array &test )
+{
+	// it is analytically found that L1(ref,test) = |ref0-test0| = |ref1-test1|
+	// the modified L1 is given by max( |ref0-test0|/ref0, |ref1-test1|/ref1 )
+	float L1 = fabs(ref[0]-test[0]);
+	return 1.0 - L1/std::max( ref[0], 1-ref[0] );
+
+	float error0 = L1/ref[0], error1 = L1/ref[1];
+	float modifiedL1error = std::max(error0, error1);
+
+	// when ref = {0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.95},
+	// the maximum modified L1 error is {19,9,4,2.3333333333,1.5,1,1.5,2.3333333333,4,9,19} respectively
+	// fitting a Linear Regression model with basis expansion set to [1 x x.^2 x.^4 x.^6 x.^8], yielded
+	// the betas as [1 6.351 -21.07 831.5 -7830 2.993e+04];
+	float x = abs(ref[0]-0.5), x2 = x*x, x4 = x2*x2;
+	float expectedMaximumModifiedL1error = 1 + x*6.351 + x2*-21.07 + x4*831.5 + x4*x2*-7830 + x4*x4*29930;
+
+	float scaledL1error = modifiedL1error/expectedMaximumModifiedL1error;
+	float modifiedL1score = 1 - scaledL1error;
+
+	return modifiedL1score;
+}
 
 float Correlation(const real_array& ref, const real_array& test)
 {
