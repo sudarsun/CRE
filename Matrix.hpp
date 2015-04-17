@@ -141,6 +141,7 @@ public:
 	{
 		mRows = rows, mCols = cols;
 		mMatrix.resize(rows, cols);
+		return true;
 	}
 
 	/// const accessor

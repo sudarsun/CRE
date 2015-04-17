@@ -59,7 +59,7 @@ void SparseMatrix::operator<<(std::istream& is )
 			std::string tuple;
 			ss >> tuple;
 
-			int pos = tuple.find(':');
+			size_t pos = tuple.find(':');
 			if ( pos == std::string::npos )
 				throw std::runtime_error( "libsvm format expected for sparse matrices" );
 
