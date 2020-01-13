@@ -32,26 +32,32 @@
 #include "Typedefs.hpp"
 #include "Data.hpp"
 #include "Utils.hpp"
+#include "QuadProg.hpp"
 #include <vector>
 
-enum KernelImplType
-{
+extern const float kCorrelationThreshold_ModifiedBinaryL1;
+extern const float kCorrelationThreshold_L1;
+
+enum KernelImplType {
 	eNAIVE,
 	eNAIVE_THREADED,
 	eARMADILLO
 };
 
-enum ScorerType
-{
+enum GaussianType {
+	eDefault,
+	eUnivariateOnly,
+	eMultivariateOnly
+};
+
+enum ScorerType {
 	eL1Scorer,
 	eBinaryL1Scorer,
 	eModifiedBinaryL1Scorer
 };
 
-static float	Score( const real_array &ref, const real_array &test, ScorerType type )
-{
-	switch(type)
-	{
+static float Score(const real_array &ref, const real_array &test, ScorerType type) {
+	switch (type) {
 		case eBinaryL1Scorer:
 			return BinaryL1Score(ref, test);
 		case eModifiedBinaryL1Scorer:
@@ -62,20 +68,48 @@ static float	Score( const real_array &ref, const real_array &test, ScorerType ty
 	}
 }
 
-class ClassRatioEstimator
-{
+class ClassRatioEstimator {
 public:
+	ClassRatioEstimator() : mKernels(nullptr), mUseSuperKernels(false) {}
+
+	~ClassRatioEstimator() {
+		delete[] mKernels;
+	}
+
+	void EnableSuperKernels() {
+		mUseSuperKernels = true;
+	}
 
 	/// Estimate the bandwidth (weighted variance, width of the gaussian distribution) from the input data matrix.
-	float 	BandwidthSelect( const Matrix &inMatrix ) const;
+	[[nodiscard]] double BandwidthSelect(const Matrix &inMatrix) const;
 
-	void	GetKernels( const Matrix &inA, const Matrix &inB, dense_matrix_array &outKernels, float inBandwidth, bool inMulti, KernelImplType type );
-	void	GetKernels( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, float inBandwidth, const real_array &inWts, const std::string &inPrefix );
+	//void	GetKernels( const Matrix &inA, const Matrix &inB, dense_matrix_array &outKernels, float inBandwidth, bool inMulti, KernelImplType type );
+	//void	GetKernels( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, float inBandwidth, const real_array &inWts, const std::string &inPrefix );
 
-	bool 	MMD( const DenseMatrix &inY, int inClasses, const DenseMatrix &inKrr, const DenseMatrix &inKre, real_array &outValues );
+	void
+	GetKernelsv2(const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, GaussianType inType, float inBandwidth,
+				 const weights_t &inWts);
 
-	void	BestKernel( const Data &inTrain, const Data &inEval, real_array &outWeights, ScorerType inType );
+	bool MMD(const DenseMatrix &inY, int inClasses, const DenseMatrix &inKrr, const DenseMatrix &inKre,
+			 real_array &outValues, bool &outIsOverfit, bool cache = false);
 
+	bool MMD_2(int inClasses, int_array &dpts, real_array &outValues) const;
+
+	//void	BestKernel( const Data &inTrain, const Data &inEval, real_array &outWeights, ScorerType inType, float inThreshold );
+	void BestKernelv2(const Data &inTrain, const Data &inEval, weights_t &outWeights, GaussianType inGaussian,
+					  ScorerType inType, float inThreshold);
+	//void	BestKernelv3(const Data &inTrain, const Data &inEval, weights_t &outWeights, ScorerType inType, float inThreshold);
+
+	[[nodiscard]] bool isCached() const {
+		return mQ.isOK() && mKernels != nullptr;
+	}
+
+private:
+	[[nodiscard]] bool CheckForOverfit(const DenseMatrix &dm, const double_array &da) const;
+
+	Qdata mQ;
+	DenseMatrix *mKernels;
+	bool mUseSuperKernels;
 
 };
 

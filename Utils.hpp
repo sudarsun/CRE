@@ -33,51 +33,61 @@
 #include <iostream>
 #include <vector>
 
-float StandardDeviation( const real_array &inArray );
+float StandardDeviation(const real_array &inArray);
 
-real_array StandardDeviation( const Matrix &inMatrix );
+real_array StandardDeviation(const Matrix &inMatrix);
 
-real_array StandardDeviation( const Matrix &inMatrix, const int_array &inCols );
+real_array StandardDeviation(const Matrix &inMatrix, const int_array &inCols);
 
-float Mean( const real_array &array );
+float Mean(const real_array &array);
 
-int_array Indices( const int_array &inArray, int inValue );
+int_array Indices(const int_array &inArray, int inValue);
 
-int_array Indices( const Matrix &inColMatrix, int inValue );
+int_array Indices(const Matrix &inColMatrix, int inValue);
 
-real_array ClassProportions( const Matrix &inLabels );
+real_array ClassProportions(const Matrix &inLabels);
 
-float 	LpNorm( const real_array &ref, const real_array &test, int p = 2 );
+real_array ClassProportions(const Matrix &inLabels, const int_array &sorted_ids);
 
-float	L1Score( const real_array &ref, const real_array &test );
-float	BinaryL1Score( const real_array &ref, const real_array &test );
-float 	ModifiedBinaryL1Score( const real_array &ref, const real_array &test );
+float LpNorm(const real_array &ref, const real_array &test, int p = 2);
 
-float 	Correlation( const real_array &ref, const real_array &test );
+float L1Score(const real_array &ref, const real_array &test);
 
-float 	Cosine( const real_array &ref, const real_array &test );
+float BinaryL1Score(const real_array &ref, const real_array &test);
 
-std::ostream & operator<<( std::ostream &ioStream, const real_array &array ) ;
-std::ostream & operator<<( std::ostream &ioStream, const double_array &array ) ;
+float ModifiedBinaryL1Score(const real_array &ref, const real_array &test);
 
-real_array & operator += ( real_array &ioArray, const real_array &inArray );
+float Correlation(const real_array &ref, const real_array &test);
 
-real_array & operator /= ( real_array &ioArray, float scale );
-real_array & operator *= ( real_array &ioArray, float scale );
+float Cosine(const real_array &ref, const real_array &test);
 
-class Scorer
-{
+std::ostream &operator<<(std::ostream &ioStream, const real_array &array);
+
+std::ostream &operator<<(std::ostream &ioStream, const double_array &array);
+
+std::ostream &operator<<(std::ostream &ioStream, const DenseMatrix &matrix);
+
+real_array &operator+=(real_array &ioArray, const real_array &inArray);
+
+weights_t &operator+=(weights_t &ioWts, const weights_t &inWts);
+
+real_array &operator/=(real_array &ioArray, float scale);
+
+real_array &operator*=(real_array &ioArray, float scale);
+
+class Scorer {
 
 public:
 
-	void	Reset(void);
-	void	Add( const real_array &inScore );
+	void Reset(void);
 
-	real_array	Finale( void );
+	void Add(const real_array &inScore);
+
+	real_array Finale(void);
 
 private:
 
-	std::vector< real_array > mScores;
+	std::vector<real_array> mScores;
 };
 
 #endif // __cre_utils_hpp__

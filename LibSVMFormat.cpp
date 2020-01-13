@@ -38,7 +38,7 @@
 bool LibSVMFormat::Read(const std::string& inFileName, SparseMatrix& outFeatures, DenseMatrix& outLabels)
 {
 	std::ifstream file( inFileName.c_str() );
-	if ( file.good() == false )
+	if ( !file.good() )
 		return false;
 
 	return Read( file, outFeatures, outLabels );
@@ -96,6 +96,8 @@ bool LibSVMFormat::Write( std::ostream &os, const Matrix& inFeatures, const Matr
 		{
 			if ( inFeatures.Exists(r,c) )
 			{
+				// columns are 0-indexed in the matrix,
+				// but the svm format used 1-index.
 				os << " " << (c+1) << ":" << inFeatures(r,c);
 			}
 		}
@@ -117,6 +119,8 @@ bool LibSVMFormat::Write( std::ostream &os, const Matrix& inFeatures)
 		{
 			if ( inFeatures.Exists(r,c) )
 			{
+				// columns are 0-indexed in the matrix,
+				// but the svm format used 1-index.
 				os << (c+1) << ":" << std::setprecision(10) << inFeatures(r,c) << " ";
 			}
 		}
@@ -165,7 +169,7 @@ bool LibSVMFormat::CheckFormat(std::istream& inStream)
 			pindex = index;
 		}
 
-		// checking only 5 lines maximum.
+		// checking a maximum of only 5 lines.
 		if ( ++lines > 5 )
 			return true;
 	}
@@ -177,7 +181,7 @@ bool LibSVMFormat::CheckFormat(std::istream& inStream)
 bool LibSVMFormat::CheckFormat(const std::string& inFileName)
 {
 	std::ifstream file( inFileName.c_str() );
-	if ( file.good() == false )
+	if ( !file.good() )
 		return false;
 
 	return CheckFormat(file);

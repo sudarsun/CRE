@@ -34,25 +34,118 @@
 
 #include "Matrix.hpp"
 #include "Typedefs.hpp"
+#include "Utils.hpp"
 
 static const std::string kNullString = "";
 struct dataset_t;
 
 typedef std::vector<dataset_t> cvdata_t;
+typedef std::vector<double> class_prop_t;
+typedef std::vector<class_prop_t> class_props_t;
 
 class Data
 {
 public:
 
+	static Data * MakeData(const Matrix &inFeatures, const Matrix &inLabels)
+	{
+
+	}
+	
+	Data(const DenseMatrix *inFeatures, const DenseMatrix *inLabels) : mIsShallow(false)
+	{
+		mFeatures = new DenseMatrix();
+		mFeatures->Append(*inFeatures);
+
+		mLabels.Append(*inLabels);
+	}
+
+	Data(const double ** inFeatures, int n, int p, const int * inLabels ) : mIsShallow(false)
+	{
+		mFeatures = new DenseMatrix(n, p);
+		mLabels.Resize(n, 1);
+		for (int i = 0; i < n; ++i)
+		{
+			mLabels(i,0) = (double)inLabels[i];
+			for (int j = 0; j < p; ++j)
+				(*mFeatures)(i,j) = inFeatures[i][j];
+		}
+	}
+
+	Data(const double * inFeatures, int n, int p, const int * inLabels ) : mIsShallow(false)
+	{
+		mFeatures = new DenseMatrix(n, p);
+		mLabels.Resize(n, 1);
+		for (int i = 0; i < n; ++i)
+		{
+			mLabels(i,0) = (double)inLabels[i];
+			for (int j = 0; j < p; ++j)
+				(*mFeatures)(i,j) = inFeatures[i*p+j];
+		}
+	}
+
 	/// default constructor
-	Data() : mFeatures(NULL), mIsShallow(false)
+	Data() : mFeatures(nullptr), mIsShallow(false)
 	{}
 
 	/// default destructor
 	~Data()
 	{
-		if ( mFeatures )
-			delete mFeatures;
+		// deleting nullptr has no effect
+		delete mFeatures;
+	}
+
+	Data * drawSamples(const class_prop_t &inProp) {
+		if (isEmpty()) return nullptr;
+	}
+
+	/*
+	* Reference of the matlab code for sampling from dirichlet distribution.
+	* 
+	* function [simplexPoints] = generateSimplexSamples(dimension, samples)
+		if (dimension == 2 && samples == 11)
+			simplexPoints = [0.01 0.99; 0.1 0.9; 0.2 0.8; 0.3 0.7; 0.4 0.6; 0.5 0.5; 0.6 0.4; 0.7 0.3; 0.8 0.2; 0.9 0.1; 0.99 0.01];
+		else
+			savedState = rand('state');
+			rand('state', 10);
+			simplexPoints = diff(sort([zeros(1, samples); rand(dimension - 1, samples); ones(1, samples)]))';
+			rand('state', savedState);
+		end
+	*/
+	class_props_t generateSimplexProps(uword n)
+	{
+		// check if the class is loaded.
+		if (isEmpty()) return class_props_t();
+		
+		// get the number of labels.
+		auto nLabels = mLabels.Rows();
+	
+		if (n == 11 && nLabels == 2)
+		{
+			class_props_t props(11);
+			float vals[][2] = {{0.01, 0.99}, {0.1, 0.9}, {0.2, 0.8}, {0.3, 0.7}, {0.4, 0.6}, {0.5, 0.5}, {0.6, 0.4}, {0.7, 0.3}, {0.8, 0.2}, {0.9, 0.1}, {0.99, 0.01}};
+			for (int i =0; i <11;++i) {
+				props[i].push_back(vals[i][0]);
+				props[i].push_back(vals[i][1]);
+			}
+			
+			return props;
+		}
+
+		mat T = trans(diff(sort(join_rows(join_rows(zeros(1, n), randn((uword)nLabels-1, n)), ones(1, n)))));
+		class_props_t props(n);
+		for (uword i = 0; i < n; ++i) {
+			for (uword j = 0; j < nLabels; j++) {
+				props[i].push_back(T(i,j));
+			}
+		}
+		
+		return props;
+	}
+
+	bool isEmpty() const
+	{
+		return mFeatures == nullptr || mFeatures->Rows() == 0;
 	}
 
 	/// assignment operator/mutator
@@ -60,21 +153,24 @@ public:
 
 	Data & Append( const Data &inData );
 
-	int	MinLabel( void ) const
+	int	minLabel() const
 	{
 		if ( mLabels.Rows() )
-			return mLabels.Min( DenseMatrix::eWholesome )(0,0);
+			return (int)mLabels.Min( DenseMatrix::eWholesome )(0,0);
 
 		return INT_MIN;
 	}
 
-	int MaxLabel( void ) const
+	int maxLabel() const
 	{
 		if ( mLabels.Rows() )
-			return mLabels.Max( DenseMatrix::eWholesome )(0,0);
+			return (int)mLabels.Max( DenseMatrix::eWholesome )(0,0);
 
 		return INT_MAX;
 	}
+
+	Data * getLabeled() const;
+	Data * getUnlabeled() const;
 
 	/**
 	 * @param inMatrix can be a libsvm formatted matrix or a plain dense matrix.
@@ -91,33 +187,40 @@ public:
 	/// Perform random permutation on the Dataset.
 	void	RandomPermute( Data &outPermuted ) const;
 
-	bool 	Empty( void ) const
-	{
-		if ( !mFeatures or mFeatures->Rows()==0 )
-			return true;
-
-		return false;
-	}
-
 	/// Generate dataset tuples < train,test > for performing n-fold Cross Validation.
-	void	GetCrossValidationDataSet( int &ioFolds, cvdata_t &outCVData );
+	void	getCrossValidationDataSet(int &ioFolds, cvdata_t &outCVData);
 
 	static void SaveCrossValidationDataSet( const cvdata_t &inCVData, const std::string &inName );
 	static void	LoadCrossValidationDataSet( const std::string &inName, cvdata_t &outCVData );
 
-	const Matrix & 		Features( void ) const;
-	const Matrix & 		Labels( void ) const;
+	const Matrix & 		features() const;
+	const Matrix & 		labels() const;
 
-	Matrix & Features( void )
+	real_array 	classProp() const
+	{
+		return ClassProportions(mLabels);
+	}
+
+	real_array	classProp(const int_array &ids) const
+	{
+		return ClassProportions(mLabels, ids);
+	}
+
+	Matrix & features()
 	{
 		return *mFeatures;
 	}
 
-	DenseMatrix & Labels( void )
+	DenseMatrix & labels()
 	{
 		return mLabels;
 	}
 
+	int size() const {
+		return isEmpty() ? 0 : mFeatures->mRows;
+	}
+
+	void _print() const;
 
 private:
 

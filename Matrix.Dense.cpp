@@ -30,7 +30,7 @@ DenseMatrix DenseMatrix::Select( const int_array &inArray1, const int_array &inA
 		return result;
 	}
 
-	uvec row_indices(inArray1.size());
+	uvec row_indices(size1_);
 	if ( size1_ )
 	{
 		for ( int i = 0; i < size1_; ++i )
@@ -44,7 +44,7 @@ DenseMatrix DenseMatrix::Select( const int_array &inArray1, const int_array &inA
 			row_indices[i] = i;
 	}
 
-	uvec col_indices(inArray2.size());
+	uvec col_indices(size2_);
 	if ( size2_ )
 	{
 		for ( int i = 0; i < size2_; ++i )
@@ -187,9 +187,9 @@ void DenseMatrix::operator<<(std::istream& is )
 
 void DenseMatrix::operator>>(std::ostream& os ) const
 {
-	for ( int r = 0; r < mRows; ++r )
+	for ( int r = 0; r < mRows && r < 10; ++r )
 	{
-		for ( int c = 0; c < mCols; ++c )
+		for ( int c = 0; c < mCols && c < 10; ++c )
 		{
 			os << std::setprecision(5) << mMatrix(r, c) << " ";
 		}
@@ -200,16 +200,19 @@ void DenseMatrix::operator>>(std::ostream& os ) const
 
 void DenseMatrix::Append( const Matrix &inMatrix )
 {
+	int outColSize = std::max(inMatrix.mCols, (int)mMatrix.n_cols);
+
 	// resize the matrix allocation to accomodate new rows.
-	mMatrix.resize( mMatrix.n_rows + inMatrix.Rows(), mMatrix.n_cols );
+	mMatrix.resize( mMatrix.n_rows + inMatrix.Rows(), outColSize); //mMatrix.n_cols );
 
 	for ( int r = mRows, r1 = 0; r < mRows+inMatrix.Rows(); ++r, ++r1 )
 	{
-		for ( int c = 0; c < mCols; ++c )
+		for ( int c = 0; c < outColSize/*mCols*/; ++c )
 			mMatrix( r, c ) = inMatrix(r1, c);
 	}
 
 	mRows = mMatrix.n_rows;
+	mCols = mMatrix.n_cols;
 }
 
 

@@ -36,15 +36,20 @@
 #include <boost/filesystem/operations.hpp>
 #include <armadillo>
 #include "LibSVMFormat.hpp"
+#include <boost/log/trivial.hpp>
+#include <boost/log/core.hpp>
+#include <boost/log/expressions.hpp>
 
-static const float kCorrelationThreshold = 0.90;
+int maxGammas = 20;
+const int maxSelected = 3;  // 3
+const int initial_gamma = -6;
 
-float ClassRatioEstimator::BandwidthSelect(const Matrix& inMatrix) const
+double ClassRatioEstimator::BandwidthSelect(const Matrix& inMatrix) const
 {
 	int nsamples = inMatrix.Rows();
 	int dimensions = inMatrix.Columns();
 
-	float sigma = 0;
+ 	double sigma = 0;
 	if ( nsamples < 500 )
 		sigma = 0.4 * sqrt(dimensions);
 	else if ( nsamples < 1000 )
@@ -52,7 +57,7 @@ float ClassRatioEstimator::BandwidthSelect(const Matrix& inMatrix) const
 	else
 		sigma = 0.14 * sqrt(dimensions);
 
-	float mean_std_x = 0;
+    double mean_std_x = 0;
 	if ( dimensions > 1E4 )
 	{
 		int_array colinds;
@@ -69,21 +74,277 @@ float ClassRatioEstimator::BandwidthSelect(const Matrix& inMatrix) const
 	return mean_std_x * sigma;
 }
 
+/*
+ * find out the assumptions made in the kernel selection method
+ *
+ * check if the modified approach voids any such assumptions
+ *
+ * theoretically prove that the modified approach is correct
+ *
+ * understand the proof the original method.
+ *
+ * Kernel selection method itself could be a paper
+ *
+ * Analysis of L1 is another paper.
+ *
+ */
+
 int PP = -1;
-void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, real_array& outWeights, ScorerType inType )
+
+/*
+ * Simple Kernel Selection:
+1] Let D be the training data.
+2] If c is the number of classes, then generate multiple samples from the simplex of size c. For binary class case, I fix these samples to be (0.01, 0.99), (0.1, 0.9), (0.2, 0.8), (0.3, 0.7), (0.4, 0.6), (0.5, 0.5), (0.6, 0.4), (0.7, 0.3), (0.8, 0.2), (0.9, 0.1), (0.99, 0.01). For classes greater than 3, I generate uniform samples from dirichlet distribution. Call each of these samples as theta^i.
+3] In step 2, we generate multiple class proportions against which we will test. For each theta^i from step 2, we generate a subset of D which has class proportion equal to theta^i and call it U^i (Although, here I indicate I generate one U^i for one theta^i but in reality I generate multiple U^i for each theta^i, this ensures stability since we are just sampling).
+4] Once we have the U^i, for each kernel, we use D and U^i, to estimate class proportion of U^i using MMD and compute the error with the actual theta^i.
+5] For each kernel, we compute the average error across all U^i
+6] We then select the kernel with the smallest average error.
+*/
+/*
+void ClassRatioEstimator::BestKernelv3(const Data &inTrain, const Data &inEval, weights_t &outWeights,
+                                       ScorerType inType, float inThreshold)
 {
-	const Matrix &train = inTrain.Features();
-	const Matrix &eval = inEval.Features();
+	const Matrix &train = inTrain.features();
+	const Matrix &eval = inEval.features();
+
+	if ( train.Columns() != eval.Columns() )
+	{
+		std::stringstream ss;
+		ss << "[train cols = " << train.Columns() << " eval cols = " << eval.Columns() << "] train & eval dataset feature column count disagreement";
+		throw std::runtime_error(ss.str());
+	}
+
+	const Matrix &yte = inEval.labels();
+	real_array yte_props = ClassProportions(yte);
+
+	int noClasses = inTrain.maxLabel();
+
+	int dims = train.Columns();
+	int n1 = train.Rows(), n2 = eval.Rows();
+
+	float bandwidth = BandwidthSelect( train );
+
+	float sim_score = -FLT_MIN;
+	int best_kernel = -1;
+	real_array best_props;
+
+	DenseMatrix superKrr(n1,n1), superKer(n2,n1);
+	float superWt = 0;
+
+	// create a placeholder for the weight proportions.
+	outWeights.resize( maxGammas );
+
+	DenseMatrix Krr, Ker;
+	RBFKernel kernel( bandwidth );
+
+	Stopwatch sw;
+	DenseMatrix KRR, KER;
+	RBFKernel kernl(bandwidth * dims * dims);
+
+	sw.Restart();
+	kernl.Compute(train, train, KRR );
+	//std::cerr << "R-R: " << sw.Elapsed();
+
+	sw.Restart();
+	kernl.Compute(eval, train, KER );
+	//std::cerr << " E-R: " << sw.Elapsed();
+
+	sw.Restart();
+	Mat<double> &krr = KRR.Data();
+	krr = log(krr);
+//	std::cerr << " log(RR): " << sw.Elapsed();
+
+	//KRR >> std::cout;
+
+	sw.Restart();
+	Mat<double> &ker = KER.Data();
+	ker = log(ker);
+//	std::cerr << " log(ER): " << sw.Elapsed();
+
+	//KER >> std::cout;
+
+	sw.Restart();
+	Krr = KRR;
+	Ker = KER;
+	//std::cerr << " Copy: " << sw.Elapsed() << std::endl;
+
+	int selected = 0;
+	int tested = -1;
+	int direction = 0; // forward;
+
+	bool already_reset = false;
+	int forward_faulted = 0, backward_faulted = -1;
+	int gamma = -6;
+	while (tested < maxGammas && selected < maxSelected)
+	{
+		++tested;
+		double scale2 = pow(2,gamma*2);
+
+		// compute train-train and eval-train kernels.
+		//Stopwatch sw;
+		sw.Restart();
+		Krr.Data() = exp(krr/scale2);
+		double krr_time = sw.Elapsed();
+
+		sw.Restart();
+		Ker.Data() = exp(ker/scale2);
+		double ker_time = sw.Elapsed();
+
+		PP = tested;
+		sw.Restart();
+
+		bool isOverfit = false;
+		real_array props_estimated;
+		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.labels()), noClasses, Krr, Ker, props_estimated, isOverfit ) || isOverfit )
+		{
+			double mmd_time = sw.Elapsed();
+			std::cerr << "Multi[lambda=2^" << gamma << "] MMD failure or Overfit -- "
+			          << "krr: " << krr_time << "mS "
+			          << "ker: " << ker_time << "mS "
+			          << "mmd: " << mmd_time << "mS "
+			          << std::endl;
+
+			// forward search
+			if (forward_faulted < 2)
+			{
+				++gamma;
+				++forward_faulted;
+				continue;
+			}
+			else if (backward_faulted < 7) // backward search.
+			{
+				if (!already_reset) {
+					gamma = -6;
+					already_reset = true;
+					backward_faulted = -1;
+					direction = 1;
+				}
+
+				++backward_faulted;
+				--gamma;
+				continue;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		float mmd_time = sw.Elapsed();
+
+		float sim_score_now = Score( yte_props, props_estimated, inType ); // L1Score( yte_props, props_estimated );
+		if ( sim_score_now > sim_score )
+		{
+			best_kernel = tested;
+			sim_score = sim_score_now;
+			best_props = props_estimated;
+		}
+
+		if (sim_score_now >= inThreshold)
+		{
+			Krr *= sim_score_now;
+			superKrr += Krr;
+
+			Ker *= sim_score_now;
+			superKer += Ker;
+
+			superWt += sim_score_now;
+
+			outWeights[tested] = weight_t(gamma, sim_score_now);
+			++selected;
+		}
+
+		std::cerr << "Multi[lambda=2^" << gamma << "] SIM=" << sim_score_now << " {bestSIM=" << sim_score << "(" << best_kernel << ")} "
+		          << "krr: " << krr_time << "mS "
+		          << "ker: " << ker_time << "mS "
+		          << "mmd: " << mmd_time << "mS ";
+
+		if ( sim_score_now >= inThreshold )
+			std::cerr << "SELECTED ";
+
+		std::cerr << std::endl;
+
+		if (direction == 0)
+			++gamma;
+		else
+			--gamma;
+
+	}
+
+	if (best_kernel == -1)
+	{
+		std::cerr << "best kernel could not be identified; something is seriously wrong with the dataset!!" << std::endl;
+		outWeights.clear();
+		return;
+	}
+
+	//std::cerr << "Best Theta:" << best_props << std::endl;
+	//std::cerr << "L1 norm: " << LpNorm( best_props, yte_props, 1 ) << std::endl;
+	//std::cerr << "L1 simi: " << L1Score( best_props, yte_props ) << std::endl;
+
+	if (selected > 1) {
+		superKrr *= (1.0/superWt);
+		superKer *= (1.0/superWt);
+	}
+
+	float super_sim_score = -1;
+	real_array props_estimated;
+	bool isOverfit = false;
+	if ( selected > 1 && MMD( dynamic_cast<const DenseMatrix &>(inTrain.labels()), noClasses, superKrr, superKer, props_estimated, isOverfit ))
+	{
+		//std::cerr << "Super Theta:" << props_estimated << std::endl;
+
+		//std::cerr << "Super L1 norm: " << LpNorm( props_estimated, yte_props, 1 ) << std::endl;
+		//std::cerr << "Super L1 simi: " << L1Score( props_estimated, yte_props ) << std::endl;
+
+		//std::cerr << "Super ModL1 simi: " << ModifiedBinaryL1Score( props_estimated, yte_props ) << std::endl;
+		//std::cerr << "Super Cosine: " << Cosine( props_estimated, yte_props ) << std::endl;
+		//std::cerr << "Super Correlation: " << Correlation( props_estimated, yte_props ) << "\n" << std::endl;
+
+		super_sim_score = Score( props_estimated, yte_props, inType );  // L1Score( props_estimated, yte_props );
+
+		// super kernel didn't contribute, so use the best kernel with binary weights.
+		// if super kernel is 1% less than single kernel estimate, we shall override,
+		// otherwise stick to super kernel.
+		if ( (super_sim_score)  < sim_score )  // super_sim_score+0.01
+		{
+			//std::cerr << "\nUsed Sparse MKL Kernel!\n" << std::endl;
+
+			weight_t wt = outWeights[best_kernel];
+			outWeights.clear();
+			outWeights.resize( maxGammas );
+			outWeights[best_kernel] = wt;
+		}
+		else
+		{
+			//std::cerr << "\nUsed Super Kernel!\n" << std::endl;
+		}
+	}
+	else // super kernel failed, so use the best kernel with binary weights.
+	{
+		//std::cerr << "\nUsed Sparse MKL Kernel!\n" << std::endl;
+		weight_t wt = outWeights[best_kernel];
+		outWeights.clear();
+		outWeights.resize( maxGammas );
+		outWeights[best_kernel] = wt;
+	}
+
+}
+
+void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, real_array& outWeights, ScorerType inType, float inThreshold )
+{
+	const Matrix &train = inTrain.features();
+	const Matrix &eval = inEval.features();
 
 	if ( train.Columns() != eval.Columns() )
 		throw std::runtime_error("feature column count disagreement");
 
-	const Matrix &yte = inEval.Labels();
+	const Matrix &yte = inEval.labels();
 	real_array yte_props = ClassProportions(yte);
 
-	int noClasses = inTrain.MaxLabel();
+	int noClasses = inTrain.maxLabel();
 
-	int dims = train.Columns();
+	auto dims = (uword)train.Columns();
 	int n1 = train.Rows(), n2 = eval.Rows();
 
 	float bandwidth = BandwidthSelect( train );
@@ -119,7 +380,8 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 		PP = k;
 		sw.Restart();
 		real_array props_estimated(noClasses);
-		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, Krr, Ker, props_estimated ) )
+		bool isOverfit = false;
+		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.labels()), noClasses, Krr, Ker, props_estimated, isOverfit ) )
 			continue;
 
 		float mmd_time = sw.Elapsed();
@@ -132,7 +394,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 			best_props = props_estimated;
 		}
 
-		if ( sim_score_now >= kCorrelationThreshold )
+		if (sim_score_now >= inThreshold)
 		{
 			Krr *= sim_score_now;
 			superKrr += Krr;
@@ -145,38 +407,86 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 			outWeights[k] = sim_score_now;
 		}
 
-		std::cout << "Dim[" << k << "] SIM=" << sim_score_now << " {bestSIM=" << sim_score << "(" << best_kernel << ")} "
+		std::cerr << "Dim[" << (k+1) << "] SIM=" << sim_score_now << " {bestSIM=" << sim_score << "(" << best_kernel << ")} "
 					<< "krr: " << krr_time << "mS "
 					<< "ker: " << ker_time << "mS "
 					<< "mmd: " << mmd_time << "mS ";
 
-		if ( sim_score_now >= kCorrelationThreshold )
-			std::cout << "SELECTED ";
+		if ( sim_score_now >= inThreshold )
+			std::cerr << "SELECTED ";
 
-		std::cout << std::endl;
+		std::cerr << std::endl;
 	}
 
-	for ( int i = -6; i <= 6; ++i, ++k )
+	Stopwatch sw;
+	DenseMatrix KRR, KER;
+	RBFKernel kernl(bandwidth * dims * dims);
+
+	sw.Restart();
+	kernl.Compute(train, train, KRR );
+	std::cerr << "R-R: " << sw.Elapsed();
+
+	sw.Restart();
+	kernl.Compute(eval, train, KER );
+	std::cerr << " E-R: " << sw.Elapsed();
+
+	sw.Restart();
+	Mat<double> &krr = KRR.Data();
+	krr = log(krr);
+	std::cerr << " log(RR): " << sw.Elapsed();
+
+	//KRR >> std::cout;
+
+	sw.Restart();
+	Mat<double> &ker = KER.Data();
+	ker = log(ker);
+	std::cerr << " log(ER): " << sw.Elapsed();
+
+	//KER >> std::cout;
+
+	sw.Restart();
+	Krr = KRR;
+	Ker = KER;
+	std::cerr << " Copy: " << sw.Elapsed() << std::endl;
+
+	int selected = 0;
+	int start = -6, end = 6;
+	bool searchComplete = false;
+	int delta = +1;
+
+	for ( int i = start; i <= end; ++i, ++k )
 	{
-		float bw = pow(2,i) * bandwidth * dims * dims;
-		RBFKernel kernel( bw );
+		auto scale2 = pow(2,i*2);
+
+		//float bw = pow(2,i) * bandwidth * dims * dims;
+		//RBFKernel kernel( bw );
 
 		// compute train-train and eval-train kernels.
-		Stopwatch sw;
-		kernel.Compute(train, train, Krr );
-		float krr_time = sw.Elapsed();
+		sw.Restart();
+		Krr.Data() = exp(krr/scale2);
+		//kernel.Compute(train, train, Krr );
+		auto krr_time = sw.Elapsed();
 
 		sw.Restart();
-		kernel.Compute(eval, train, Ker );
-		float ker_time = sw.Elapsed();
+		Ker.Data() = exp(ker/scale2);
+		//kernel.Compute(eval, train, Ker );
+		auto ker_time = sw.Elapsed();
 
 		PP = k;
 		sw.Restart();
+
+		bool isOverfit = false;
 		real_array props_estimated;
-		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, Krr, Ker, props_estimated ) )
+		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.labels()), noClasses, Krr, Ker, props_estimated, isOverfit ) )
 			continue;
 
-		float mmd_time = sw.Elapsed();
+		if (isOverfit && !searchComplete)
+		{
+
+			break;
+		}
+
+		auto mmd_time = sw.Elapsed();
 
 		float sim_score_now = Score( yte_props, props_estimated, inType ); // L1Score( yte_props, props_estimated );
 		if ( sim_score_now > sim_score )
@@ -186,7 +496,7 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 			best_props = props_estimated;
 		}
 
-		if (sim_score_now >= kCorrelationThreshold)
+		if (sim_score_now >= inThreshold)
 		{
 			Krr *= sim_score_now;
 			superKrr += Krr;
@@ -194,71 +504,342 @@ void ClassRatioEstimator::BestKernel(const Data& inTrain, const Data &inEval, re
 			Ker *= sim_score_now;
 			superKer += Ker;
 
-			superWt = sim_score_now;
+			superWt += sim_score_now;
 
 			outWeights[k] = sim_score_now;
+			++selected;
 		}
 
-		std::cout << "Multi[" << k << "] SIM=" << sim_score_now << " {bestSIM=" << sim_score << "(" << best_kernel << ")} "
+		std::cerr << "Multi[" << k << "][lambda=2^" << i << "] SIM=" << sim_score_now << " {bestSIM=" << sim_score << "(" << best_kernel << ")} "
 					<< "krr: " << krr_time << "mS "
 					<< "ker: " << ker_time << "mS "
 					<< "mmd: " << mmd_time << "mS ";
 
-		if ( sim_score_now >= kCorrelationThreshold )
-			std::cout << "SELECTED ";
+		if ( sim_score_now >= inThreshold )
+			std::cerr << "SELECTED ";
 
-		std::cout << std::endl;
+		std::cerr << std::endl;
 	}
 
-	std::cout << "Best Theta:\n" << best_props << std::endl;
-	std::cout << "L1 norm: " << LpNorm( best_props, yte_props, 1 ) << std::endl;
-	std::cout << "L1 simi: " << L1Score( best_props, yte_props ) << std::endl;
-	std::cout << "ModL1 simi: " << ModifiedBinaryL1Score( best_props, yte_props ) << std::endl;
-	std::cout << "Cosine : " << Cosine( best_props, yte_props ) << std::endl;
-	std::cout << "Correlation: " << Correlation( best_props, yte_props ) << "\n" << std::endl;
+	std::cerr << "Best Theta:" << best_props << std::endl;
+	std::cerr << "L1 norm: " << LpNorm( best_props, yte_props, 1 ) << std::endl;
+	std::cerr << "L1 simi: " << L1Score( best_props, yte_props ) << std::endl;
+	//std::cerr << "ModL1 simi: " << ModifiedBinaryL1Score( best_props, yte_props ) << std::endl;
+	//std::cerr << "Cosine : " << Cosine( best_props, yte_props ) << std::endl;
+	//std::cerr << "Correlation: " << Correlation( best_props, yte_props ) << "\n" << std::endl;
 
-	superKrr *= (1.0/superWt);
-	superKer *= (1.0/superWt);
+	if (selected > 1) {
+		superKrr *= (1.0/superWt);
+		superKer *= (1.0/superWt);
+	}
 
 	float super_sim_score = -1;
 	real_array props_estimated;
-	if ( MMD( dynamic_cast<const DenseMatrix &>(inTrain.Labels()), noClasses, superKrr, superKer, props_estimated ))
+	bool isOverfit = false;
+	if ( selected > 1 && MMD( dynamic_cast<const DenseMatrix &>(inTrain.labels()), noClasses, superKrr, superKer, props_estimated, isOverfit ))
 	{
-		std::cout << "Super Theta:\n" << props_estimated << std::endl;
+		std::cerr << "Super Theta:" << props_estimated << std::endl;
 
-		std::cout << "Super L1 norm: " << LpNorm( props_estimated, yte_props, 1 ) << std::endl;
-		std::cout << "Super L1 simi: " << L1Score( props_estimated, yte_props ) << std::endl;
-		std::cout << "Super ModL1 simi: " << ModifiedBinaryL1Score( props_estimated, yte_props ) << std::endl;
-		std::cout << "Super Cosine: " << Cosine( props_estimated, yte_props ) << std::endl;
-		std::cout << "Super Correlation: " << Correlation( props_estimated, yte_props ) << "\n" << std::endl;
+		std::cerr << "Super L1 norm: " << LpNorm( props_estimated, yte_props, 1 ) << std::endl;
+		std::cerr << "Super L1 simi: " << L1Score( props_estimated, yte_props ) << std::endl;
+		//std::cerr << "Super ModL1 simi: " << ModifiedBinaryL1Score( props_estimated, yte_props ) << std::endl;
+		//std::cerr << "Super Cosine: " << Cosine( props_estimated, yte_props ) << std::endl;
+		//std::cerr << "Super Correlation: " << Correlation( props_estimated, yte_props ) << "\n" << std::endl;
 
 		super_sim_score = Score( props_estimated, yte_props, inType );  // L1Score( props_estimated, yte_props );
 
 		// super kernel didn't contribute, so use the best kernel with binary weights.
 		// if super kernel is 1% less than single kernel estimate, we shall override,
 		// otherwise stick to super kernel.
-		if ( (super_sim_score+0.01) < sim_score )
+		if ( (super_sim_score ) < sim_score ) // +0.01
 		{
-			std::cout << "\nUsed Sparse MKL Kernel!\n" << std::endl;
+			std::cerr << "\nUsed Sparse MKL Kernel!\n" << std::endl;
 			outWeights.clear();
 			outWeights.resize( dims + 13 );
 			outWeights[best_kernel] = 1;
 		}
 		else
 		{
-			std::cout << "\nUsed Super Kernel!\n" << std::endl;
+			std::cerr << "\nUsed Super Kernel!\n" << std::endl;
 		}
 	}
 	else // super kernel failed, so use the best kernel with binary weights.
 	{
-		std::cout << "\nUsed Sparse MKL Kernel!\n" << std::endl;
+		std::cerr << "\nUsed Sparse MKL Kernel!\n" << std::endl;
 		outWeights.clear();
 		outWeights.resize( dims + 13 );
 		outWeights[best_kernel] = 1;
 	}
 
 }
+*/
 
+void ClassRatioEstimator::BestKernelv2(const Data& inTrain, const Data &inEval, weights_t& outWeights, GaussianType inGaussian, ScorerType inType, float inThreshold )
+{
+	const Matrix &train = inTrain.features();
+	const Matrix &eval = inEval.features();
+
+	if ( train.Columns() != eval.Columns() )
+	{
+		std::stringstream ss;
+		ss << "[train cols = " << train.Columns() << " eval cols = " << eval.Columns() << "] train & eval dataset feature column count disagreement";
+		throw std::runtime_error(ss.str());
+	}
+
+	const Matrix &yte = inEval.labels();
+	real_array yte_props = ClassProportions(yte);
+
+	int noClasses = inTrain.maxLabel();
+	if (yte_props.size() < noClasses)
+		yte_props.resize(noClasses);
+
+	int dims = train.Columns();
+	int n1 = train.Rows(), n2 = eval.Rows();
+
+	float bandwidth = BandwidthSelect( train );
+
+	float sim_score = -FLT_MIN;
+	int best_kernel = -1;
+	real_array best_props;
+
+	DenseMatrix superKrr(n1,n1), superKer(n2,n1);
+	float superWt = 0;
+
+	if (inGaussian != eMultivariateOnly && maxGammas < dims)
+		maxGammas += dims;
+
+	// create a placeholder for the weight proportions.
+	outWeights.resize( (ulong)maxGammas );
+	int tested = -1;
+
+	DenseMatrix Krr, Ker;
+	RBFKernel kernel( bandwidth );
+
+	int k = 0;
+	for ( ; k < dims && inGaussian != eMultivariateOnly; ++k )
+	{
+		// have only one dimension in the column select.
+		int_array cols;
+		cols.push_back(k);
+
+		Stopwatch sw;
+		// compute train-train and eval-train kernels.
+		kernel.Compute(train, train, Krr, cols );
+		float krr_time = sw.Elapsed();
+
+		sw.Restart();
+		kernel.Compute(eval, train, Ker, cols );
+		float ker_time = sw.Elapsed();
+
+		PP = k;
+		sw.Restart();
+		real_array props_estimated(noClasses);
+		bool isOverfit = false;
+
+		// if MMD failed or overfit, let's move to the next value.
+		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.labels()), noClasses, Krr, Ker, props_estimated, isOverfit ) || isOverfit )
+			continue;
+
+		float mmd_time = sw.Elapsed();
+
+		float sim_score_now = Score(yte_props, props_estimated, inType ); // L1Score( yte_props, props_estimated );
+		if ( sim_score_now > sim_score )
+		{
+			best_kernel = k;
+			sim_score = sim_score_now;
+			best_props = props_estimated;
+		}
+
+		if (sim_score_now >= inThreshold)
+		{
+			Krr *= sim_score_now;
+            Ker *= sim_score_now;
+
+            if (mUseSuperKernels) {
+                superKrr += Krr;
+                superKer += Ker;
+                superWt += sim_score_now;
+            }
+
+			// univariate kernels shall the gamma value indexed from 100 onwards.
+			outWeights[++tested] = weight_t(100+k, sim_score_now);
+		}
+
+		BOOST_LOG_TRIVIAL(debug) << "Dim[" << (k+1) << "] SIM=" << sim_score_now << " {bestSIM=" << sim_score << "(" << (best_kernel+1) << ")} "
+		          << "krr: " << krr_time << "mS "
+		          << "ker: " << ker_time << "mS "
+		          << "mmd: " << mmd_time << "mS "
+		          << (sim_score_now >= inThreshold ? "SELECTED " : "");
+	}
+
+	Stopwatch sw;
+	DenseMatrix KRR, KER;
+	RBFKernel kernl(bandwidth); //sqrt(dims)); // * dims * dims);
+
+	kernl.Compute(train, train, KRR );
+	kernl.Compute(eval, train, KER );
+
+	sw.Restart();
+	Mat<double> &krr = KRR.Data();
+	krr = log(krr);
+
+	sw.Restart();
+	Mat<double> &ker = KER.Data();
+	ker = log(ker);
+
+	sw.Restart();
+	Krr = KRR;
+	Ker = KER;
+
+	int selected = 0;
+	int direction = 0; // forward;
+
+	bool already_reset = false;
+	int forward_faulted = 0, backward_faulted = -1;
+	int gamma =  initial_gamma;
+	while (inGaussian != eUnivariateOnly && tested < maxGammas && selected < maxSelected)
+	{
+		++tested;
+		auto scale2 = pow(2,gamma+1); //pow(2,gamma*2);
+
+		// compute train-train and eval-train kernels.
+		sw.Restart();
+		Krr.Data() = exp(krr/scale2);
+		auto krr_time = sw.Elapsed();
+
+		sw.Restart();
+		Ker.Data() = exp(ker/scale2);
+		auto ker_time = sw.Elapsed();
+
+		PP = tested;
+		sw.Restart();
+
+		bool isOverfit = false;
+		real_array props_estimated;
+        // if MMD failed or overfit, let's move to the next value.
+		if ( !MMD( dynamic_cast<const DenseMatrix &>(inTrain.labels()), noClasses, Krr, Ker, props_estimated, isOverfit ) || isOverfit )
+		{
+			auto mmd_time = sw.Elapsed();
+			BOOST_LOG_TRIVIAL(debug) << "Multi[lambda=2^" << gamma << "] MMD failure or Overfit -- "
+					<< "krr: " << krr_time << "mS "
+					<< "ker: " << ker_time << "mS "
+					<< "mmd: " << mmd_time << "mS ";
+
+			// forward search
+			if (forward_faulted < 2)
+			{
+				++gamma;
+				++forward_faulted;
+				continue;
+			}
+			else if (backward_faulted < 7) // backward search. // 7
+			{
+				if (!already_reset) {
+					gamma = initial_gamma;
+					already_reset = true;
+					backward_faulted = -1;
+					direction = 1;
+				}
+
+				++backward_faulted;
+				--gamma;
+				continue;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		auto mmd_time = sw.Elapsed();
+
+		float sim_score_now = Score( yte_props, props_estimated, inType ); // L1Score( yte_props, props_estimated );
+		if ( sim_score_now > sim_score )
+		{
+			best_kernel = tested;
+			sim_score = sim_score_now;
+			best_props = props_estimated;
+		}
+
+		if (sim_score_now >= inThreshold)
+		{
+			Krr *= sim_score_now;
+            Ker *= sim_score_now;
+
+            if (mUseSuperKernels) {
+                superKrr += Krr;
+                superKer += Ker;
+                superWt += sim_score_now;
+            }
+
+			outWeights[tested] = weight_t(gamma, sim_score_now);
+			++selected;
+		}
+
+		BOOST_LOG_TRIVIAL(debug) << "Multi[𝛌=2^" << gamma << "] SIM=" << sim_score_now << " {bestSIM=" << sim_score << " 𝛄=" << outWeights[best_kernel].first << ")} "
+					<< "krr: " << krr_time << "mS "
+					<< "ker: " << ker_time << "mS "
+					<< "mmd: " << mmd_time << "mS "
+					<< (sim_score_now >= inThreshold  ? "SELECTED " : "");
+
+		if (direction == 0)
+			++gamma;
+		else
+			--gamma;
+
+	}
+
+	if (best_kernel == -1)
+	{
+		BOOST_LOG_TRIVIAL(error) << "best kernel could not be identified; something is seriously wrong with the dataset!!" << std::endl;
+		outWeights.clear();
+		return;
+	}
+
+	if (selected > 1 && mUseSuperKernels) {
+		superKrr *= (1.0/superWt);
+		superKer *= (1.0/superWt);
+	}
+
+	float super_sim_score = -1;
+	real_array props_estimated;
+	bool isOverfit = false;
+	if ( mUseSuperKernels && selected > 1 && MMD( dynamic_cast<const DenseMatrix &>(inTrain.labels()), noClasses, superKrr, superKer, props_estimated, isOverfit ))
+	{
+        BOOST_LOG_TRIVIAL(trace) << "trying the super kernel..";
+		//std::cerr << "Super Theta:" << props_estimated << std::endl;
+
+		super_sim_score = Score( props_estimated, yte_props, inType );  // L1Score( props_estimated, yte_props );
+
+		// super kernel didn't contribute, so use the best kernel with binary weights.
+		// if super kernel is 1% less than single kernel estimate, we shall override,
+		// otherwise stick to super kernel.
+		if ( (super_sim_score +0.01) < sim_score )
+		{
+			BOOST_LOG_TRIVIAL(debug) << "using Sparse MKL Kernel!";
+
+			weight_t wt = outWeights[best_kernel];
+			outWeights.clear();
+			outWeights.resize( maxGammas );
+			outWeights[best_kernel] = wt;
+		}
+		else
+		{
+            BOOST_LOG_TRIVIAL(debug) << "using Super Kernel!";
+		}
+	}
+	else // super kernel failed, so use the best kernel with binary weights.
+	{
+        //BOOST_LOG_TRIVIAL(debug) << "using Sparse MKL Kernel!";
+		weight_t wt = outWeights[best_kernel];
+		outWeights.clear();
+		outWeights.resize( maxGammas );
+		outWeights[best_kernel] = wt;
+	}
+
+}
+
+/*
 void
 ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, float inBandwidth, const real_array &inWts, const std::string &inPrefix )
 {
@@ -290,7 +871,7 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 		int_array cols;
 		cols.push_back(k);
 
-		std::cout << "Dim[" << k << "]: ";
+		std::cerr << "Dim[" << (k+1) << "]: ";
 		Stopwatch sw;
 
 		DenseMatrix K;
@@ -306,9 +887,9 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 				Stopwatch tt;
 				// kernel computed on a per dimension basis.
 				kernel.Compute( inA, inB, K, cols );
-				std::cout << "Compute:" << tt.Restart() << " mS;";
+				std::cerr << "Compute:" << tt.Restart() << " mS;";
 				K.Save(filename);
-				std::cout << "Save:" << tt.Restart() << " mS; ";
+				std::cerr << "Save:" << tt.Restart() << " mS; ";
 			}
 		}
 
@@ -316,11 +897,18 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 		totalWt += inWts[k];
 		outKernel += K;
 
-		std::cout << sw.Elapsed() << " mS" << std::endl;
+		std::cerr << sw.Elapsed() << " mS" << std::endl;
 	}
 
-	int nofKernels = univariateGaussians + bandwidths.size();
-	for ( int k = univariateGaussians; k < nofKernels; ++k )
+	//DenseMatrix KRR;
+	//RBFKernel kernl(inBandwidth);
+	//kernl.Compute(inA, inB, KRR );
+	//Mat<double> &krr = KRR.Data();
+	//krr = log(krr);
+	//DenseMatrix K = KRR;
+
+	ulong nofKernels = univariateGaussians + bandwidths.size();
+	for ( int k = univariateGaussians, g = -6; k < nofKernels; ++k, ++g )
 	{
 		if ( inWts[k] == 0 )
 			continue;
@@ -328,13 +916,17 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 		float bw = bandwidths[ k-univariateGaussians ];
 		RBFKernel kernel(bw);
 
-		std::cout << "BW[" << k << "]: ";
+		std::cerr << "BW[" << k << "]: ";
 		Stopwatch sw;
 
 		DenseMatrix K;
 
 		if ( !inPrefix.length() )
+		{
+			//float scale2 = pow(2,g*2);
+			//K.Data() = exp(krr/scale2);
 			kernel.Compute( inA, inB, K );
+		}
 		else
 		{
 			char filename[100];
@@ -343,9 +935,9 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 			{
 				Stopwatch tt;
 				kernel.Compute( inA, inB, K );
-				std::cout << "Compute:" << tt.Restart() << " mS;";
+				std::cerr << "Compute:" << tt.Restart() << " mS;";
 				K.Save(filename);
-				std::cout << "Save:" << tt.Restart() << " mS; ";
+				std::cerr << "Save:" << tt.Restart() << " mS; ";
 			}
 		}
 
@@ -353,11 +945,56 @@ ClassRatioEstimator::GetKernels( const Matrix &inA, const Matrix &inB, DenseMatr
 		totalWt += inWts[k];
 		outKernel += K;
 
-		std::cout << sw.Elapsed() << " mS" << std::endl;
+		std::cerr << sw.Elapsed() << " mS" << std::endl;
 	}
 
 	outKernel *= (1.0/totalWt);
 }
+*/
+
+void
+ClassRatioEstimator::GetKernelsv2( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, GaussianType inType, float inBandwidth, const weights_t &inWts)
+{
+	int dimensions = inA.Columns();
+
+	float totalWt = 0;
+	outKernel.Resize(inA.Rows(), inB.Rows());
+	// initialize the kernel matrix, without which
+	// boost gives you a random matrix!
+	outKernel.Zeroize();
+
+	for ( auto wt : inWts )
+	{
+		int gamma = wt.first;
+		if (gamma == 0) continue;
+
+		DenseMatrix K;
+
+		// process univariate gaussian kernels
+		if (gamma >= 100) {
+			auto colid = gamma - 100;
+
+			int_array cols;
+			cols.push_back(colid);
+
+			RBFKernel kernel(inBandwidth);
+			kernel.Compute(inA, inB, K, cols);
+		}
+		else {
+			auto bw = powf(2,gamma) * inBandwidth * dimensions * dimensions;
+
+			RBFKernel kernel(bw);
+			kernel.Compute(inA, inB, K);
+		}
+
+		K *= wt.second;
+		totalWt += wt.second;
+		outKernel += K;
+	}
+
+	outKernel *= (1.0/totalWt);
+}
+
 /*
 void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense_matrix_array &outKernels, float inBandwidth, bool inMulti, KernelImplType inType )
 {
@@ -376,7 +1013,7 @@ void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense
 		univariateGaussians = 0;
 	else
 	{
-		std::auto_ptr<Kernel> kernel( new RBFKernel( inBandwidth ) );
+		auto kernel = std::make_unique<RBFKernel>(inBandwidth);
 
 		outKernels.resize( dimensions );
 		for ( int k = 0; k < dimensions; ++k )
@@ -385,7 +1022,7 @@ void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense
 			int_array cols;
 			cols.push_back(k);
 
-			std::cerr << "Dim[" << k << "]: ";
+			std::cerr << "Dim[" << (k+1) << "]: ";
 			Stopwatch sw;
 			// kernel computed on a per dimension basis.
 			kernel->Compute( inA, inB, outKernels[k], cols );
@@ -399,7 +1036,7 @@ void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense
 	for ( int k = univariateGaussians; k < nofKernels; ++k )
 	{
 		float bw = bandwidths[ k-univariateGaussians ];
-		std::auto_ptr<Kernel> kernel( new RBFKernel( inBandwidth ) );
+		auto kernel = std::make_unique<RBFKernel>(bw);
 
 		std::cerr << "BW[" << k << "]: ";
 		Stopwatch sw;
@@ -444,26 +1081,57 @@ void ClassRatioEstimator::GetKernels(const Matrix& inA, const Matrix& inB, dense
 	obj = .5 * (theta'*H*theta) + theta'*f;
 */
 
-bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const DenseMatrix& inKrr, const DenseMatrix& inKre, real_array &outValues)
+bool ClassRatioEstimator::CheckForOverfit ( const DenseMatrix& dm, const double_array& da ) const
 {
+	int reached_matrix = 0;
+	int reached_array = 0;
+	int num_classes = dm.Rows();
+	for (int i = 0; i < num_classes; ++i)
+	{
+		for (int j = 0; j < dm.Columns(); ++j)
+			if (fabs(dm(i,j)-2.0) < 1e-5) ++reached_matrix;
+
+		if (fabs(da[i]+2.0) < 1e-5) ++reached_array;
+	}
+
+	//std::cout << reached_matrix << " " << reached_array << std::endl;
+	return (reached_matrix == num_classes*num_classes && reached_array == num_classes);
+}
+
+
+bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const DenseMatrix& inKrr, const DenseMatrix& inKer, real_array &outValues, bool &outIsOverfit, bool cache)
+{
+	// reset the overfit flag.
+	outIsOverfit = false;
+
 	int N = inY_.Rows();
 	int_array inY(N);
 	for ( int i = 0; i < N; ++i )
-		inY[i] = inY_(i,0);
+		inY[i] = static_cast<int>(inY_(i,0));
 
 	DenseMatrix H( inClasses, inClasses );
 	double_array f( inClasses );
 
+	if (cache)
+	{
+		delete [] mKernels;
+		mKernels = new DenseMatrix[inClasses];
+	}
+
+	//inKrr >> std::cout;
+
 	for ( int i = 0; i < inClasses; ++i )
 	{
 		int_array idx1 =  Indices( inY, i+1 );
-		int size1 = idx1.size();
+		//int size1 = idx1.size();
 
 		for ( int j = 0; j < inClasses; ++j )
 		{
 			int_array idx2 = Indices( inY, j+1 );
 			int size2 = idx2.size();
 			DenseMatrix ktemp = inKrr.Select(idx1, idx2);
+
+			//ktemp >> std::cout;
 
 			/*
 			if ( i == j )
@@ -486,17 +1154,35 @@ bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const Dens
 				H(i,j) = ktemp.Mean(DenseMatrix::eColWise).Mean(DenseMatrix::eRowWise)(0,0) * 2.0;
 				/*if ( H(i,j) > 100 or H(i,j) < -100 )
 				{
-					std::cout << "PROBLEM KTEMP\n";
-					ktemp >> std::cout;
+					std::cerr << "PROBLEM KTEMP\n";
+					ktemp >> std::cerr;
 					exit(0);
 				}*/
 			}
 		}
 
 		int_array dummy;
-		DenseMatrix ktemp = inKre.Select(dummy, idx1);
+		DenseMatrix ktemp = inKer.Select(dummy, idx1);
 		f[i] = -2.0 * ktemp.Mean(DenseMatrix::eColWise).Mean(DenseMatrix::eRowWise)(0,0);
+
+		// make a copy of the computed kernels for later reuse.
+		if (mKernels != nullptr)
+			mKernels[i] = ktemp;
 	}
+
+	if (CheckForOverfit(H, f))
+	{
+	    /*H >> std::cerr;
+	    std::cerr << f << std::endl;
+
+	    inKer >> std::cerr;
+	    std::cerr << std::endl;
+	    inKrr >> std::cerr;*/
+
+		outIsOverfit = true;
+		//return false;
+	}
+
 
 	//DenseMatrix H1 = H;
 	H += H.Transpose();
@@ -505,23 +1191,29 @@ bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const Dens
 	Qdata q(H.Data());
 	int result = QuadProg( q, &f[0], inClasses, outValues );
 
+	// cache the Q function for speed.
+	// invalidate previously stored.
+	// WARNING: we just do a change of ownership of the underlying memory units from q to mQ.
+	if (cache)
+		mQ = q;
+
 	if ( result )
 	{
-	/*	std::cout << "PERTURBING..\n";
-		H1 >> std::cout;
-		std::cout << "\n" << f << std::endl;
-		std::cout << std::endl;
+	/*	std::cerr << "PERTURBING..\n";
+		H1 >> std::cerr;
+		std::cerr << "\n" << f << std::endl;
+		std::cerr << std::endl;
 		H.Perturb(1000.0);
-		H >> std::cout;
-		std::cout << std::endl;
+		H >> std::cerr;
+		std::cerr << std::endl;
 
 		Qdata q1(H);
 		result = QuadProg( q1, &f[0], inClasses, outValues );
 
 		if ( result )
-			std::cout << "FAILED..\n";
+			std::cerr << "FAILED..\n";
 		else
-			std::cout << "WORKED..\n";*/
+			std::cerr << "WORKED..\n";*/
 	}
 
 /*
@@ -562,3 +1254,20 @@ bool ClassRatioEstimator::MMD(const DenseMatrix &inY_, int inClasses, const Dens
 	return result == 0;
 }
 
+bool ClassRatioEstimator::MMD_2(int inClasses, int_array &dpts, real_array &outValues) const
+{
+	if (isCached())
+	{
+		double_array f( inClasses );
+		for ( int i = 0; i < inClasses; ++i )
+		{
+			DenseMatrix ktemp = mKernels[i].Select(dpts, int_array());
+			f[i] = -2.0 * ktemp.Mean(DenseMatrix::eColWise).Mean(DenseMatrix::eRowWise)(0,0);
+		}
+
+		int result = QuadProg( mQ, &f[0], inClasses, outValues );
+		return result == 0;
+	}
+
+	return false;
+}

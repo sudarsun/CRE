@@ -30,6 +30,16 @@
 #include <armadillo>
 
 
+static void print (const Mat<double> &m, int k = 50) {
+    for (int i = 0; i < k; ++i) {
+        for (int j = 0; j < k; ++j) {
+            std::cerr << m(i,j) << " ";
+        }
+
+        std::cerr << std::endl;
+    }
+}
+
 /*
  * 	function [H]=rbf_dot(patterns1,patterns2, sigma);
 
@@ -45,7 +55,7 @@
 	H=exp(-H/2/sigma^2);
 */
 
-Mat<double> O1, O2;
+//Mat<double> O1, O2;
 
 void
 RBFKernel::Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel )
@@ -90,8 +100,8 @@ RBFKernel::Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel
 		return;
 	}
 
-	const DenseMatrix *dmatrixA = dynamic_cast<const DenseMatrix *>(&inA);
-	const DenseMatrix *dmatrixB = dynamic_cast<const DenseMatrix *>(&inB);
+	const auto *dmatrixA = dynamic_cast<const DenseMatrix *>(&inA);
+	const auto *dmatrixB = dynamic_cast<const DenseMatrix *>(&inB);
 	if ( dmatrixA and dmatrixB )
 	{
 		const Mat<double> &dmatA = dmatrixA->Data();
@@ -110,6 +120,7 @@ RBFKernel::Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel
 		//Mat<double> K = exp( H*mScale );
 
 		Mat<double> &K = outKernel.Data();
+
 		K = exp((dmatA2*ones(c1,n2) + ones(n1,c1)*dmatB2.t() - 2*dmatA*dmatB.t())*mScale);
 		//K = exp((dmatA2*O1 + O2*dmatB2.t() - 2*dmatA*dmatB.t())*mScale);
 
@@ -123,6 +134,7 @@ RBFKernel::Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel
 
 	throw std::invalid_argument("RBFKernel::Compute() expects both the matrices to be of same type with Sparse or Dense" );
 }
+
 
 void
 RBFKernel::Compute( const Matrix &inA, const Matrix &inB, DenseMatrix &outKernel, const int_array &inCols )

@@ -42,7 +42,7 @@ Data& Data::operator=(const Data& inData )
 	else
 		mFeatures = new DenseMatrix();
 
-	*mFeatures = inData.Features();
+	*mFeatures = inData.features();
 
 	return *this;
 }
@@ -57,15 +57,16 @@ bool Data::Load(const std::string& inFeatureMatrix, const std::string &inLabelCo
 			mFeatures = new SparseMatrix();
 			bool result = LibSVMFormat::Read( inFeatureMatrix, *(dynamic_cast<SparseMatrix*>(mFeatures)), mLabels );
 
+			//@Override: If the label is 0, this means the data point is "unlabeled"
 			// if the labels are starting from 0, change that to start-by-1.
-			if ( mLabels.Rows() and mLabels.Min(DenseMatrix::eWholesome)(0,0) == 0 )
-				mLabels += 1;
+			//if ( mLabels.Rows() and mLabels.Min(DenseMatrix::eWholesome)(0,0) == 0 )
+			//	mLabels += 1;
 
 			return result;
 		}
 
 		std::ifstream features( inFeatureMatrix.c_str() );
-		if ( features.good() == false )
+		if ( !features.good() )
 			return false;
 
 		mFeatures = new DenseMatrix();
@@ -75,11 +76,11 @@ bool Data::Load(const std::string& inFeatureMatrix, const std::string &inLabelCo
 	}
 
 	std::ifstream features( inFeatureMatrix.c_str() );
-	if ( features.good() == false )
+	if ( !features.good() )
 		return false;
 
 	std::ifstream labels( inLabelColumnMatrix.c_str() );
-	if ( labels.good() == false )
+	if ( !labels.good() )
 		return false;
 
 	mFeatures = new DenseMatrix();
@@ -105,9 +106,10 @@ bool Data::Load( std::istream& inMatrix, std::istream& inLabelColumnMatrix)
 			mFeatures = new SparseMatrix();
 			bool result = LibSVMFormat::Read( inMatrix, *(dynamic_cast<SparseMatrix*>(mFeatures)), mLabels );
 
+			//@Override: If the label is 0, this means the data point is "unlabeled"
 			// if the labels are starting from 0, change that to start-by-1.
-			if ( mLabels.Rows() and mLabels.Min(DenseMatrix::eWholesome)(0,0) == 0 )
-				mLabels += 1;
+			//if ( mLabels.Rows() and mLabels.Min(DenseMatrix::eWholesome)(0,0) == 0 )
+			//	mLabels += 1;
 
 			return result;
 		}
@@ -136,7 +138,7 @@ bool Data::Save(const std::string& outFile) const
 	if ( mIsShallow )
 	{
 		std::ofstream file( outFile.c_str() );
-		if ( file.good() == false )
+		if ( !file.good() )
 			return false;
 
 		return LibSVMFormat::Write( file, *mFeatures, mLabels );
@@ -156,6 +158,53 @@ bool Data::Save(const std::string& outFile) const
 	return true;
 }
 
+Data * Data::getLabeled(void) const
+{
+	size_t n = mLabels.Rows();
+	if (n == 0)
+		return new Data();
+
+	int_array dpts;
+	for ( int i = 0; i < n; ++i )
+		if ((int)mLabels(i,0) != 0)
+			dpts.push_back(i);
+		//else
+		//	std::cerr << "i=" << i << ": " << mLabels(i,0) << std::endl;
+
+	auto *dm = dynamic_cast<DenseMatrix *>(mFeatures);
+	if (dm == nullptr)
+		return new Data();
+
+	const DenseMatrix &features = dm->Select(dpts, int_array());
+	const DenseMatrix &labels = mLabels.Select(dpts, int_array());
+
+	return new Data(&features, &labels);
+}
+
+Data * Data::getUnlabeled() const
+{
+	size_t n = mLabels.Rows();
+	if (n == 0)
+		return new Data();
+
+	int_array dpts;
+	for ( int i = 0; i < n; ++i )
+		if ((int)mLabels(i,0) == 0)
+			dpts.push_back(i);
+
+	if (dpts.empty())
+		return new Data();
+
+	auto *dm = dynamic_cast<DenseMatrix *>(mFeatures);
+	if (dm == nullptr)
+		return new Data();
+
+	const DenseMatrix &features = dm->Select(dpts, int_array());
+	const DenseMatrix &labels = mLabels.Select(dpts, int_array());
+
+	return new Data(&features, &labels);
+}
+
 void Data::Load(const std::string& inName)
 {
 	if ( LibSVMFormat::CheckFormat( inName ) )
@@ -164,9 +213,10 @@ void Data::Load(const std::string& inName)
 		mFeatures = new SparseMatrix();
 		bool result = LibSVMFormat::Read( inName, *(dynamic_cast<SparseMatrix*>(mFeatures)), mLabels );
 
+		//@Override: If the label is 0, this means the data point is "unlabeled"
 		// if the labels are starting from 0, change that to start-by-1.
-		if ( mLabels.Rows() and mLabels.Min(DenseMatrix::eWholesome)(0,0) == 0 )
-			mLabels += 1;
+		//if ( mLabels.Rows() and mLabels.Min(DenseMatrix::eWholesome)(0,0) == 0 )
+		//	mLabels += 1;
 
 		return;
 	}
@@ -190,9 +240,9 @@ void Data::Load(const std::string& inName)
 
 Data& Data::Append(const Data& inData)
 {
-	if ( inData.Empty() )
+	if ( inData.isEmpty() )
 		return *this;
-	else if ( Empty() )
+	else if ( isEmpty() )
 		return (*this = inData);
 
 	mLabels.Append( inData.mLabels );
@@ -204,7 +254,7 @@ Data& Data::Append(const Data& inData)
 
 void Data::RandomPermute(Data& outPermuted) const
 {
-	if ( Empty() )
+	if ( isEmpty() )
 		return;
 
 	int D = mFeatures->Columns();
@@ -248,7 +298,7 @@ void Data::RandomPermute(Data& outPermuted) const
 
 void Data::Split(float inPercent, Data& outSplitA, Data& outSplitB) const
 {
-	if ( Empty() )
+	if ( isEmpty() )
 		return;
 
 	if ( inPercent < 1 or inPercent > 99 )
@@ -256,7 +306,7 @@ void Data::Split(float inPercent, Data& outSplitA, Data& outSplitB) const
 
 	int D = mFeatures->Columns();
 	int N = mFeatures->Rows();
-	int split1 = N*inPercent;
+	int split1 = int(N*inPercent);
 	int split2 = N - split1;
 
 	bool Yfound = mLabels.Rows() > 0;
@@ -364,10 +414,10 @@ void Data::LoadCrossValidationDataSet(const std::string& inName, cvdata_t& outCV
 	outCVData.resize(i);
 }
 
-void Data::GetCrossValidationDataSet(int &ioFolds, cvdata_t& outCVData)
+void Data::getCrossValidationDataSet(int &ioFolds, cvdata_t &outCVData)
 {
     // randomize timer for better randperm() functionality.
-	time_t tim = time(NULL);
+	time_t tim = time(nullptr);
 	srand(tim);
 
 	int N = mLabels.Rows();
@@ -381,7 +431,7 @@ void Data::GetCrossValidationDataSet(int &ioFolds, cvdata_t& outCVData)
 		ids.push_back(i);
 
 	std::random_shuffle( ids.begin(), ids.end() );
-	int partition_size = ((float)N/(float)ioFolds);
+	int partition_size = int((float)N/(float)ioFolds);
 
 	bool gotY = mLabels.Rows() > 0;
 
@@ -417,7 +467,7 @@ void Data::GetCrossValidationDataSet(int &ioFolds, cvdata_t& outCVData)
 				}
 			}
 
-			// preseve the column size in sparse matrices.
+			// preserve the column size in sparse matrices.
 			if ( mIsShallow and !col_preserved )
 			{
 				features << D << ":0";
@@ -445,12 +495,35 @@ void Data::GetCrossValidationDataSet(int &ioFolds, cvdata_t& outCVData)
 	}
 }
 
-const Matrix& Data::Features(void ) const
+void Data::_print() const
+{
+	if (mFeatures)
+	{
+		for (int i = 1; i < 10; ++i)
+		{
+			for (int j = 0; j < 5; ++j)
+			{
+				double v = (*(const Matrix *)mFeatures)(i,j);
+				printf("%f ", v);
+			}
+
+			printf("\n");
+		}
+
+		printf("\n\n");
+	}
+	else {
+		printf("feature matrix is empty!!\n\n");
+	}
+
+}
+
+const Matrix& Data::features() const
 {
 	return *mFeatures;
 }
 
-const Matrix& Data::Labels(void ) const
+const Matrix& Data::labels() const
 {
 	return mLabels;
 }

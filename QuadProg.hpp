@@ -8,10 +8,33 @@
 
 struct Qdata
 {
-	Qdata( void ) : qsubi(NULL), qsubj(NULL), qval(NULL), nonzeros(0)
+	Qdata() : qsubi(nullptr), qsubj(nullptr), qval(nullptr), nonzeros(0)
 	{}
 
-	Qdata( const arma::Mat<double> &QuadObjective )
+	[[nodiscard]] bool isOK() const
+	{
+		return qsubi != nullptr && qsubj != nullptr && qval != nullptr && nonzeros != 0;
+	}
+
+	Qdata & operator=(Qdata &q) noexcept
+	{
+		// clear the underlying memory, if we already have one.
+		this->~Qdata();
+
+		// change of ownership.
+		qsubi = q.qsubi;
+		qsubj = q.qsubj;
+		qval = q.qval;
+		nonzeros = q.nonzeros;
+
+		// reset the original owner.
+		q.qsubi = nullptr;
+		q.qsubj = nullptr;
+		q.qval = nullptr;
+		q.nonzeros = 0;
+	}
+
+	explicit Qdata( const arma::Mat<double> &QuadObjective )
 	{
 		int I = QuadObjective.n_rows;
 		int J = QuadObjective.n_cols;
@@ -24,7 +47,7 @@ struct Qdata
 			for ( int j = 0; j <= i; ++j )
 			{
 				double value = QuadObjective(i,j);
-				if ( value )
+				if ( abs(value) > std::numeric_limits<double>::epsilon() )
 				{
 					iarray.push_back(i);
 					jarray.push_back(j);
@@ -42,8 +65,8 @@ struct Qdata
 		memcpy( qsubj, &jarray[0], jarray.size() * sizeof(MSKint32t) );
 		memcpy( qval, &varray[0], varray.size() * sizeof(double) );
 	}
-
-	Qdata( const DenseMatrix &QuadObjective )
+/*
+	explicit Qdata( const DenseMatrix &QuadObjective )
 	{
 		int I = QuadObjective.Rows();
 		int J = QuadObjective.Columns();
@@ -56,7 +79,7 @@ struct Qdata
 			for ( int j = 0; j <= i; ++j )
 			{
 				double value = QuadObjective(i,j);
-				if ( value )
+				if ( abs(value) > std::numeric_limits<double>::epsilon() )
 				{
 					iarray.push_back(i);
 					jarray.push_back(j);
@@ -73,16 +96,13 @@ struct Qdata
 		memcpy( qsubi, &iarray[0], iarray.size() * sizeof(MSKint32t) );
 		memcpy( qsubj, &jarray[0], jarray.size() * sizeof(MSKint32t) );
 		memcpy( qval, &varray[0], varray.size() * sizeof(double) );
-	}
+	}*/
 
 	~Qdata()
 	{
-		if ( qsubi )
-			delete [] qsubi;
-		if ( qsubj )
-			delete [] qsubj;
-		if ( qval )
-			delete [] qval;
+		delete [] qsubi;
+		delete [] qsubj;
+		delete [] qval;
 	}
 
 	MSKint32t *qsubi;

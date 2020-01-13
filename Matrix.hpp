@@ -29,6 +29,7 @@
 #define MATRIX_H
 
 #include <iostream>
+#include <utility>
 #include <vector>
 #include <armadillo>
 #include "Typedefs.hpp"
@@ -39,7 +40,7 @@ class Matrix
 
 public:
 
-	Matrix( void ) : mRows(0), mCols(0)
+	Matrix() : mRows(0), mCols(0)
 	{}
 
 	virtual ~Matrix()
@@ -70,24 +71,33 @@ public:
 	/// Append the matrix with the new matrix with columns size agreement.
 	virtual void Append( const Matrix & ) = 0;
 
-	virtual void Clear( void ) = 0;
+	virtual void Clear() = 0;
 
-	virtual bool Exists(int r, int c) const
+	[[nodiscard]] virtual bool Exists(int r, int c) const
 	{
-		if ( r >= 0 and r < mRows and c >= 0 and c < mCols )
-			return true;
-
-		return false;
+		return r >= 0 and r < mRows and c >= 0 and c < mCols;
 	}
 
-	int	Rows( void ) const
+	[[nodiscard]] int	Rows() const
 	{
 		return mRows;
 	}
 
-	int Columns( void ) const
+	[[nodiscard]] int Columns() const
 	{
 		return mCols;
+	}
+
+	[[nodiscard]] virtual double * RawData() const
+	{
+		int total = mRows * mCols;
+		auto *memory = new double[total];
+
+		for (int i = 0; i < mRows; ++i)
+			for (int j = 0; j < mCols; ++j)
+				memory[i*mCols+j] = (*this)(i,j);
+
+		return memory;
 	}
 
 	virtual bool	Load( const std::string &inName ) = 0;
@@ -104,25 +114,24 @@ class DenseMatrix : public Matrix
 
 public:
 
-	DenseMatrix(void )
+	DenseMatrix() = default;
+
+	explicit DenseMatrix( Row<double> row ) : mMatrix(std::move(row))
 	{}
 
-	DenseMatrix( const Row<double> &row ) : mMatrix(row)
-	{}
-
-	DenseMatrix( const Col<double> &col ) : mMatrix(col)
+	explicit DenseMatrix( Col<double> col ) : mMatrix(std::move(col))
 	{}
 
 	/// constructor for pre-allocation of space.
 	DenseMatrix( int rows, int cols, double value = 0 );
 
-	virtual ~DenseMatrix()
-	{
-	}
+	~DenseMatrix() override	= default;
 
+private:
 	/// equals comparator
 	bool operator==(const DenseMatrix & other);
 
+public:
 	DenseMatrix & operator+=( const DenseMatrix & );
 	DenseMatrix & operator%=( const DenseMatrix & );
 	DenseMatrix & operator*=( double scalar );
@@ -130,14 +139,13 @@ public:
 	DenseMatrix & operator-=( double scalar );
 
 	/// clear the allocation.
-	void Clear( void )
-	{
+	void Clear() override {
 		mRows = mCols = 0;
 		mMatrix.resize(0,0);
 	}
 
 	/// resize the matrix to (rows x cols)
-	bool Resize( int rows, int cols )
+	bool Resize( int rows, int cols ) override
 	{
 		mRows = rows, mCols = cols;
 		mMatrix.resize(rows, cols);
@@ -145,44 +153,44 @@ public:
 	}
 
 	/// const accessor
-	double operator()( int r, int c ) const
+	double operator()( int r, int c ) const override
 	{
 		return mMatrix(r,c);
 	}
 
 	/// non-const accessor/mutator method
-	double & operator()( int r, int c )
+	double & operator()( int r, int c ) override
 	{
 		return mMatrix(r,c);
 	}
 
 	/// read a text stream to load the matrix.
-	void operator << ( std::istream & );
+	void operator << ( std::istream & ) override;
 
 	/// write the matrix to an output stream
-	void operator >> ( std::ostream & ) const;
+	void operator >> ( std::ostream & ) const override;
 
-	void Append( const Matrix & );
+	void Append( const Matrix & ) override;
 
 	Matrix & operator= ( const Matrix & );
 
 	DenseMatrix & operator=( const DenseMatrix & );
 
-	DenseMatrix Select( const int_array &idx1, const int_array &idx2 ) const;
+	[[nodiscard]] DenseMatrix Select( const int_array &idx1, const int_array &idx2 ) const;
 
-	DenseMatrix Transpose( void ) const;
+	[[nodiscard]] DenseMatrix Transpose() const;
 
-	Mat<double> & Data( void )
+	Mat<double> & Data()
 	{
 		return mMatrix;
 	}
 
-	const Mat<double> & Data( void ) const
+	[[nodiscard]] const Mat<double> & Data() const
 	{
 		return mMatrix;
 	}
 
-	void Zeroize( void )
+	void Zeroize()
 	{
 		mMatrix.zeros();
 	}
@@ -194,13 +202,13 @@ public:
 		eWholesome
 	};
 
-	DenseMatrix Mean( Order_t inOrder = eColWise ) const;
-	DenseMatrix Sum( Order_t inOrder = eColWise ) const;
-	DenseMatrix Min( Order_t inOrder = eColWise ) const;
-	DenseMatrix Max( Order_t inOrder = eColWise ) const;
+	[[nodiscard]] DenseMatrix Mean( Order_t inOrder = eColWise ) const;
+	[[nodiscard]] DenseMatrix Sum( Order_t inOrder = eColWise ) const;
+	[[nodiscard]] DenseMatrix Min( Order_t inOrder = eColWise ) const;
+	[[nodiscard]] DenseMatrix Max( Order_t inOrder = eColWise ) const;
 
-	bool	Load( const std::string &inName );
-	void	Save( const std::string &inName ) const;
+	bool	Load( const std::string &inName ) override;
+	void	Save( const std::string &inName ) const override;
 
 private:
 
@@ -226,49 +234,49 @@ class SparseMatrix : public Matrix
 
 public:
 
-	~SparseMatrix()
+	~SparseMatrix() override
 	{}
 
 	/// equals comparator
 	bool operator==(const SparseMatrix& other);
 
 	/// clear the allocation.
-	void Clear( void );
+	void Clear() override;
 
 	/// resize the matrix to (rows x cols)
-	bool Resize( int rows, int cols );
+	bool Resize( int rows, int cols ) override;
 
 	/// const accessor
-	double operator()( int r, int c ) const;
+	double operator()( int r, int c ) const override;
 
 	/// non-const accessor/mutator method
-	double & operator()( int r, int c );
+	double & operator()( int r, int c ) override;
 
 	/// read a text stream to load the matrix.
-	void operator << ( std::istream & );
+	void operator << ( std::istream & ) override;
 
 	/// write the matrix to an output stream
-	void operator >> ( std::ostream & ) const;
+	void operator >> ( std::ostream & ) const override ;
 
 	/// existence check of a cell.
-	bool Exists( int row, int col ) const;
+	bool Exists( int row, int col ) const override;
 
-	void Append( const Matrix & );
+	void Append( const Matrix & ) override;
 
-	Matrix & operator= ( const Matrix & );
+	Matrix & operator= ( const Matrix & ) override;
 
-	SpMat<double> & Data( void )
+	SpMat<double> & Data()
 	{
 		return mMatrix;
 	}
 
-	const SpMat<double> & Data( void ) const
+	const SpMat<double> & Data() const
 	{
 		return mMatrix;
 	}
 
-	bool	Load( const std::string &inName );
-	void	Save( const std::string &inName ) const;
+	bool	Load( const std::string &inName ) override;
+	void	Save( const std::string &inName ) const override;
 
 private:
 

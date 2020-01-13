@@ -10,7 +10,7 @@
 static double kZERO = 0;
 
 void
-SparseMatrix::Clear( void )
+SparseMatrix::Clear()
 {
 	mRows = mCols = 0;
 	mMatrix.reset();
@@ -105,10 +105,13 @@ void SparseMatrix::operator>>(std::ostream& os ) const
 		for ( int c = 0; c < mCols; ++c )
 		{
 			double val = mMatrix(r, c);
-			if ( val )
+
+			// no matter whether the value is 0 or not, we will save it as is.
+			// i have inserted 0 values to preserve the shape of the matrix before, if needed.
+			//if ( val )
 				os << val << " ";
-			else
-				os << "- ";
+			//else
+			//	os << "- ";
 		}
 
 		os << std::endl;
@@ -127,7 +130,7 @@ void SparseMatrix::Append( const Matrix &inMatrix )
 		for ( int c = 0; c < mCols; ++c )
 		{
 			double val = mMatrix(r,c);
-			if ( val )
+			if ( val || c == mCols-1)	 // hack to preserve the matrix column size in sparse matrices.
 			{
 				int size = values.size();
 				if ( size <= nnzeros )
@@ -153,7 +156,7 @@ void SparseMatrix::Append( const Matrix &inMatrix )
 		for ( int c = 0; c < inCols; ++c )
 		{
 			double val = inMatrix( r1, c );
-			if ( val )
+			if ( val || c == inCols-1) // hack to preserve the matrix column size in sparse matrices.
 			{
 				int size = values.size();
 				if ( size <= nnzeros )
