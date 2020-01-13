@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakeRunConfigurationManager" shouldGenerate="true" shouldDeleteObsolete="true">
+    <generated>
+      <config projectName="CRE" targetName="cre_rt" />
+      <config projectName="CRE" targetName="cre" />
+    </generated>
+  </component>
+  <component name="CMakeSettings" AUTO_RELOAD="true">
+    <configurations>
+      <configuration PROFILE_NAME="Debug" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=/usr/local/buddi" BUILD_OPTIONS="-j 6" />
+      <configuration PROFILE_NAME="MinSizeRel" CONFIG_NAME="MinSizeRel" GENERATION_OPTIONS="-DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=/usr/local/buddi" BUILD_OPTIONS="-j 6" />
+    </configurations>
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="61bd999a-0d13-4f7d-858c-ca6d9732c4b0" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/ClassRatioEstimatorRuntime.cpp" root0="SKIP_INSPECTION" />
+  </component>
+  <component name="OCFindUsagesOptions" text="false" ivars="false" properties="true" derivedClasses="false" />
+  <component name="ProjectId" id="1RMVUr7KkjLXYaD1vWyNWjOqXvh" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showExcludedFiles" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="settings.editor.selected.configurable" value="CMakeSettings" />
+  </component>
+  <component name="RunManager" selected="CMake Application.cre">
+    <configuration name="cre" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="-r a9a3k.tr -e a9a3k.te -v 3 -V 6 -m -s 30" WORKING_DIR="file://$PROJECT_DIR$/../../workspace/cre" PASS_PARENT_ENVS_2="true" PROJECT_NAME="CRE" TARGET_NAME="cre" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="CRE" RUN_TARGET_NAME="cre">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="cre_rt" type="CMakeRunConfiguration" factoryName="Application" PASS_PARENT_ENVS_2="true" PROJECT_NAME="CRE" TARGET_NAME="cre_rt" CONFIG_NAME="Debug">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <list>
+      <item itemvalue="CMake Application.cre" />
+      <item itemvalue="CMake Application.cre_rt" />
+    </list>
+  </component>
+  <component name="ServiceViewManager">
+    <option name="viewStates">
+      <list>
+        <serviceView>
+          <treeState>
+            <expand />
+            <select />
+          </treeState>
+        </serviceView>
+      </list>
+    </option>
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State>
+              <option name="COLUMN_ORDER" />
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="813" y="442" width="464" height="166" key="com.intellij.openapi.vcs.update.UpdateOrStatusOptionsDialogupdate-v2" timestamp="1578902731281">
+      <screen x="0" y="0" width="1920" height="1045" />
+    </state>
+    <state x="813" y="442" width="464" height="166" key="com.intellij.openapi.vcs.update.UpdateOrStatusOptionsDialogupdate-v2/0.0.1920.1045/1920.0.1920.1080@0.0.1920.1045" timestamp="1578902731281" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/Utils.cpp</url>
+          <line>24</line>
+          <option name="timeStamp" value="13" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/ClassRatioEstimator.cpp</url>
+          <line>1181</line>
+          <option name="timeStamp" value="49" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+  <component name="debuggerHistoryManager">
+    <expressions id="breakpointCondition">
+      <expression>
+        <expression-string>c&gt;=551</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>inCols[2]==0</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>c&gt;551</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>c&gt;552</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>c&gt;550</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>c&gt;600</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>c&gt;700</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>c&gt;1000</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>c&gt;1400</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>c&gt;500</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+    </expressions>
+    <expressions id="watch">
+      <expression>
+        <expression-string>inCols</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+    </expressions>
+    <expressions id="evaluateExpression">
+      <expression>
+        <expression-string>features[200]</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>features[2]</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>(double [])features[2]</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>(double [])features[1]</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>(double [])features</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>features</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>inCols[1496]</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>F</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>csize</expression-string>
+        <language-id>ObjectiveC</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+    </expressions>
+  </component>
+</project>
