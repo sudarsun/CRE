@@ -1,2 +1,1 @@
-bigfile filter=lfs diff=lfs merge=lfs -text
-bfile2 filter=lfs diff=lfs merge=lfs -text
+libudev.so filter=lfs diff=lfs merge=lfs -text
