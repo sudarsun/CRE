@@ -1,2 +1,0 @@
-libudev.so filter=lfs diff=lfs merge=lfs -text
-libLinuxUSB.so filter=lfs diff=lfs merge=lfs -text
